@@ -1,0 +1,25 @@
+:root { --bg:#0b1020; --card:#141a30; --text:#e8ecf8; --muted:#9aa4c7; --accent:#7c9cff; --line:#8884; }
+@media (prefers-color-scheme: light) { :root { --bg:#f6f7fb; --card:#fff; --text:#161a2b; --muted:#5b6485; --accent:#3b5bdb; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); line-height:1.75; }
+a { color:var(--accent); text-decoration:none; }
+.head { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; }
+.logo { font-size:1.5rem; font-weight:700; color:var(--text); }
+.logo small { font-size:.8rem; color:var(--muted); margin-left:6px; }
+.nav { display:flex; gap:14px; flex-wrap:wrap; font-size:.95rem; }
+.wrap { max-width:780px; margin:0 auto; padding:20px; }
+.card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; display:block; color:var(--text); }
+.card h2 { margin:6px 0; font-size:1.15rem; }
+.card img { width:100%; border-radius:8px; }
+.meta { color:var(--muted); font-size:.85rem; }
+.foot { text-align:center; padding:24px; color:var(--muted); font-size:.9rem; }
+.badge { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:0 10px; font-size:.8rem; color:var(--muted); }
+article img { max-width:100%; border-radius:10px; }
+input, textarea, select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; margin:4px 0 12px; }
+input[type=checkbox], input[type=radio] { width:auto; margin:0 6px 0 0; }
+textarea { min-height:220px; }
+.btn { display:inline-block; padding:8px 14px; border-radius:8px; border:0; background:var(--accent); color:#fff; font:inherit; cursor:pointer; margin:2px 4px 2px 0; }
+.btn.red { background:#d6336c; } .btn.gray { background:#6b7280; } .btn.green { background:#2f9e44; }
+.row { background:var(--card); border-radius:10px; padding:12px; margin-bottom:10px; }
+.tabs a { margin-right:12px; } .tabs a.on { font-weight:700; text-decoration:underline; }
+.err { color:#ff6b6b; }

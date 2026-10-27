@@ -1,0 +1,39 @@
+import { notFound } from "next/navigation";
+import { adminClient } from "@/lib/supabase";
+import { requireAdmin } from "@/lib/admin-auth";
+import { A } from "@/lib/adminpath";
+import { CATS } from "@/lib/site";
+import { Nav } from "../../nav";
+import { saveArticle, articleOp } from "../../actions";
+
+export default async function Edit({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string }> }) {
+  const me = await requireAdmin();
+  const { id } = await params;
+  const { data: a } = await adminClient().from("articles").select("*").eq("id", id).maybeSingle();
+  if (!a) notFound();
+  const links: { name: string; url: string }[] = a.source_links ?? [];
+  return (
+    <>
+      <Nav email={me.email} />
+      {(await searchParams).ok && <p className="meta">✅ সেভ হয়েছে</p>}
+      <p className="meta">অবস্থা: <b>{a.status}</b> · স্কোর {a.verification_score} · সূত্র: {links.map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer">{l.name}</a>)}</p>
+      <form action={saveArticle}>
+        <input type="hidden" name="id" value={a.id} />
+        <label>বিভাগ</label>
+        <select name="category" defaultValue={a.category}>{Object.entries(CATS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        <label>শিরোনাম (বাংলা)</label><input name="title_bn" defaultValue={a.title_bn ?? ""} />
+        <label>সারকথা</label><input name="excerpt" defaultValue={a.excerpt ?? ""} />
+        <label>বিস্তারিত (বাংলা)</label><textarea name="body_bn" defaultValue={a.body_bn ?? ""} />
+        <label>Title (English)</label><input name="title_en" defaultValue={a.title_en ?? ""} />
+        <label>Body (English)</label><textarea name="body_en" defaultValue={a.body_en ?? ""} />
+        <button className="btn">সেভ</button>
+      </form>
+      <form action={articleOp}>
+        <input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={A()} />
+        {a.status !== "published" && <button className="btn green" name="op" value="approve">অনুমোদন ও প্রকাশ</button>}
+        {a.status === "draft" && <button className="btn red" name="op" value="reject">বাতিল</button>}
+        {a.status === "published" && <button className="btn red" name="op" value="draft">প্রকাশ বন্ধ</button>}
+      </form>
+    </>
+  );
+}
