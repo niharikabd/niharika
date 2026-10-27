@@ -26,13 +26,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <div className="meta">{CATS[a.category]} · স্কোর {a.verification_score ?? "-"} · {bn(a.created_at)} · সূত্র: {(a.source_links as any[])?.[0]?.name}</div>
           <a className="btn gray" href={A(`/articles/${a.id}`)}>দেখুন / সম্পাদনা</a>
           {["draft", "rejected", "approved"].includes(a.status) && (
-            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><button className="btn green" name="op" value="approve">অনুমোদন ও প্রকাশ</button></form>
+            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><input type="hidden" name="op" value="approve" /><button className="btn green">অনুমোদন ও প্রকাশ</button></form>
           )}
           {a.status === "draft" && (
-            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><button className="btn red" name="op" value="reject">বাতিল</button></form>
+            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><input type="hidden" name="op" value="reject" /><button className="btn red">বাতিল</button></form>
           )}
           {a.status === "published" && (
-            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><button className="btn red" name="op" value="draft">প্রকাশ বন্ধ</button></form>
+            <form action={articleOp} style={{ display: "inline" }}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={back} /><input type="hidden" name="op" value="draft" /><button className="btn red">প্রকাশ বন্ধ</button></form>
           )}
         </div>
       ))}
