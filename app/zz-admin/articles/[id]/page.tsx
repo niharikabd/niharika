@@ -28,12 +28,17 @@ export default async function Edit({ params, searchParams }: { params: Promise<{
         <label>Body (English)</label><textarea name="body_en" defaultValue={a.body_en ?? ""} />
         <button className="btn">সেভ</button>
       </form>
-      <form action={articleOp}>
-        <input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={A()} />
-        {a.status !== "published" && <button className="btn green" name="op" value="approve">অনুমোদন ও প্রকাশ</button>}
-        {a.status === "draft" && <button className="btn red" name="op" value="reject">বাতিল</button>}
-        {a.status === "published" && <button className="btn red" name="op" value="draft">প্রকাশ বন্ধ</button>}
-      </form>
+      <div className="row">
+        {a.status !== "published" && (
+          <form action={articleOp}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={A()} /><input type="hidden" name="op" value="approve" /><button className="btn green">অনুমোদন ও প্রকাশ</button></form>
+        )}
+        {a.status === "draft" && (
+          <form action={articleOp}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={A()} /><input type="hidden" name="op" value="reject" /><button className="btn red">বাতিল</button></form>
+        )}
+        {a.status === "published" && (
+          <form action={articleOp}><input type="hidden" name="id" value={a.id} /><input type="hidden" name="back" value={A()} /><input type="hidden" name="op" value="draft" /><button className="btn red">প্রকাশ বন্ধ</button></form>
+        )}
+      </div>
     </>
   );
 }
