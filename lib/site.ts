@@ -1,4 +1,4 @@
-export const SITE = process.env.SITE_URL || "https://niharika.vercel.app";
+export const SITE = process.env.SITE_URL || "https://niiharika.vercel.app";
 export const CATS: Record<string, string> = { science: "বিজ্ঞান", tech: "প্রযুক্তি", bangladesh: "বাংলাদেশ", world: "বিশ্ব" };
 export const CAT_EN: Record<string, string> = { science: "Science", tech: "Technology", bangladesh: "Bangladesh", world: "World" };
 

@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   return {
     title, description: a.excerpt ?? undefined,
     alternates: { canonical: url, languages: { bn: url, en: `/en/article/${a.slug}`, "x-default": url } },
-    openGraph: { type: "article", title, description: a.excerpt ?? undefined, url, publishedTime: a.published_at, modifiedTime: a.updated_at, section: CATS[a.category], images: a.banner_url ? [{ url: a.banner_url, width: 1080, height: 1080 }] : [] },
+    openGraph: { type: "article", title, description: a.excerpt ?? undefined, url, publishedTime: a.published_at, modifiedTime: a.updated_at, section: CATS[a.category], images: a.banner_url ? [{ url: a.banner_url, width: 1080, height: 1350 }] : [] },
     twitter: { card: "summary_large_image", title, description: a.excerpt ?? undefined, images: a.banner_url ? [a.banner_url] : [] },
   };
 }
@@ -54,7 +54,7 @@ export default async function Article({ params }: P) {
       <p className="meta"><Link href="/">হোম</Link> › <Link href={`/category/${a.category}`}>{CATS[a.category]}</Link></p>
       <h1>{a.title_bn || a.title_en}</h1>
       <p className="meta">🤖 AI-সহায়তায় তৈরি · {bn(a.published_at)} · {Math.max(1, Math.round(words / 150))} মিনিটের পাঠ</p>
-      {a.banner_url && <img src={a.banner_url} alt={a.title_bn || ""} width={1080} height={1080} style={{ aspectRatio: "16/9", objectFit: "cover", width: "100%" }} />}
+      {a.banner_url && <img className="hero" src={a.banner_url} alt={a.title_bn || ""} />}
       <div style={{ whiteSpace: "pre-wrap" }}>{a.body_bn}</div>
       <h3>মূল সূত্র</h3>
       <ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul>

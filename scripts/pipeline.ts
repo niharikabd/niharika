@@ -4,7 +4,7 @@ import Parser from "rss-parser";
 import { adminClient } from "../lib/supabase";
 import { getSettings, type Settings } from "../lib/settings";
 import { log } from "../lib/log";
-import { generate, hasAI } from "./ai";
+import { generate, hasAI, curate } from "./ai";
 import { alertAdmin } from "./telegram";
 import { publishAll } from "./publish";
 
@@ -19,7 +19,7 @@ async function collect() {
   for (const s of sources ?? []) {
     try {
       const feed = await parser.parseURL(s.url);
-      for (const it of feed.items.slice(0, 10)) {
+      for (const it of feed.items.slice(0, 12)) {
         if (!it.link || !it.title) continue;
         const url_hash = createHash("sha256").update(it.link).digest("hex");
         const { data: seen } = await db.from("raw_items").select("id").eq("url_hash", url_hash).maybeSingle();
@@ -52,12 +52,44 @@ async function remainingQuota(perDay: number) {
 
 const slugify = (t: string) => `${t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "news"}-${Math.random().toString(36).slice(2, 7)}`;
 
+// ক্যাটাগরির লক্ষ্য অনুপাত: বিজ্ঞান বেশি (মূল ফোকাস), বাকিগুলো কম
+const WEIGHT: Record<string, number> = { science: 0.4, tech: 0.25, bangladesh: 0.2, world: 0.15 };
+
+function dayStartISO() {
+  const bdt = new Date(Date.now() + BDT);
+  bdt.setUTCHours(0, 0, 0, 0);
+  return new Date(bdt.getTime() - BDT).toISOString();
+}
+
+// আজ কোন ক্যাটাগরির কয়টি লেখা হয়েছে দেখে সবচেয়ে "পিছিয়ে" থাকা ক্যাটাগরি থেকে খবর বাছা
+async function pickCandidate(ok: any[]) {
+  const { data: today } = await db.from("articles").select("category").gte("created_at", dayStartISO()).neq("status", "rejected");
+  const counts: Record<string, number> = {};
+  for (const r of today ?? []) counts[r.category] = (counts[r.category] ?? 0) + 1;
+  const total = (today ?? []).length;
+  const cats = [...new Set(ok.map((i) => i.sources.category as string))];
+  cats.sort((a, b) => ((WEIGHT[b] ?? 0.1) * (total + 1) - (counts[b] ?? 0)) - ((WEIGHT[a] ?? 0.1) * (total + 1) - (counts[a] ?? 0)));
+  const pool = ok.filter((i) => i.sources.category === cats[0]);
+  pool.sort((a, b) => b.sources.trust_level - a.sources.trust_level || +new Date(b.published_at ?? 0) - +new Date(a.published_at ?? 0));
+  // সম্পাদকীয় বাছাই: সেরা ১০টির মধ্য থেকে AI সবচেয়ে গুরুত্বপূর্ণটি বাছে (একাধিক সূত্রে আসা খবর বেশি গুরুত্ব পায়)
+  const top10 = pool.slice(0, 10);
+  if (top10.length > 1 && hasAI()) {
+    try {
+      const cand = await Promise.all(top10.map(async (i) => ({ i, n: Number((await db.rpc("corroboration_count", { t: i.title, src: i.source_id })).data ?? 0) })));
+      const r = await curate(cand.map(({ i, n }) => ({ title: i.title, summary: i.summary ?? "", source: i.sources.name, others: n })));
+      await log("info", "curate", `বাছাই (${cats[0]}): ${top10[r.index].title.slice(0, 90)} — ${r.reason}`);
+      return top10[r.index];
+    } catch (e) { await log("warn", "curate", `AI বাছাই ব্যর্থ, সাধারণ নিয়মে: ${(e as Error).message.slice(0, 160)}`); }
+  }
+  const top = pool.slice(0, 3);                       // ফলব্যাক: একই সূত্র বারবার না আসতে সামান্য এলোমেলো
+  return top[Math.floor(Math.random() * top.length)];
+}
+
 async function writeOne(s: Settings) {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const { data: items } = await db.from("raw_items").select("*, sources(name, category, trust_level)").eq("status", "new").gte("created_at", since).limit(60);
+  const { data: items } = await db.from("raw_items").select("*, sources(name, category, trust_level)").eq("status", "new").gte("created_at", since).limit(200);
   const ok = (items ?? []).filter((i: any) => i.sources && s.categories[i.sources.category]);
-  ok.sort((a: any, b: any) => (b.sources.trust_level * 10 + (b.sources.category === "science" ? 5 : 0)) - (a.sources.trust_level * 10 + (a.sources.category === "science" ? 5 : 0)));
-  const pick: any = ok[0];
+  const pick: any = ok.length ? await pickCandidate(ok) : null;
   if (!pick) return log("info", "write", "লেখার মতো নতুন আইটেম নেই");
 
   try {
@@ -70,11 +102,12 @@ async function writeOne(s: Settings) {
     const { error } = await db.from("articles").insert({
       slug: slugify(g.title_en), category: pick.sources.category,
       title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
+      social_caption: g.social_caption_bn ?? null, image_prompt: g.image_prompt ?? null,
       source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status,
     });
     if (error) throw new Error(error.message);
     await db.from("raw_items").update({ status: "used" }).eq("id", pick.id);
-    await log("info", "write", `লেখা তৈরি (${status}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}): ${g.title_en}`);
+    await log("info", "write", `লেখা তৈরি (${status}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}, ${pick.sources.category}): ${g.title_en}`);
   } catch (e) {
     await log("error", "write", (e as Error).message, { raw_item: pick.id });
     await alertAdmin(`❌ নীহারিকা: লেখা ব্যর্থ\n${(e as Error).message}`);

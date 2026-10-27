@@ -1,32 +1,52 @@
-// ব্যানার: sharp + pango দিয়ে (বাংলা যুক্তাক্ষর ঠিকভাবে বসে)। GitHub runner-এ fonts-noto-core লাগে।
+// ব্যানার ১০৮০×১৩৫০ (৪:৫): ওপরে ওয়েবসাইট (বামে) ও লোগো (ডানে), তারপর শিরোনাম ও সূত্র, নিচে ছবি।
+// sharp + pango দিয়ে (বাংলা যুক্তাক্ষর ঠিকভাবে বসে)। GitHub runner-এ fonts-noto-core লাগে।
 import sharp from "sharp";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const W = 1080;
+export const W = 1080, H = 1350;
 
 async function text(markup: string, font: string, width: number) {
   return sharp({ text: { text: markup, font, width, rgba: true, wrap: "word", spacing: 10 } }).png().toBuffer();
 }
 
-export async function makeBanner(title: string, categoryLabel: string): Promise<Buffer> {
-  const bg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${W}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#2b3a8c"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><circle cx="920" cy="170" r="260" fill="#7c9cff" opacity=".13"/><circle cx="130" cy="960" r="330" fill="#b07cff" opacity=".10"/><rect x="70" y="880" width="120" height="6" fill="#7c9cff"/></svg>`);
+const MARK = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><defs><radialGradient id="r" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#d7c9ff"/><stop offset=".6" stop-color="#6f7cff"/><stop offset="1" stop-color="#2b3a8c"/></radialGradient></defs><circle cx="32" cy="32" r="30" fill="url(#r)"/><path d="M32 11 L36.5 27.5 L53 32 L36.5 36.5 L32 53 L27.5 36.5 L11 32 L27.5 27.5 Z" fill="#fff"/></svg>`;
 
-  let titleImg!: Buffer;
-  for (const size of [64, 54, 46, 40, 34]) {
-    titleImg = await text(`<span foreground="#ffffff">${esc(title)}</span>`, `Noto Sans Bengali Bold ${size}`, W - 140);
-    if ((await sharp(titleImg).metadata()).height! <= 560) break;
+export type BannerInput = { title: string; categoryLabel: string; source: string; bg?: Buffer | null; credit?: string };
+
+export async function makeBanner(i: BannerInput): Promise<Buffer> {
+  const hasBg = !!i.bg;
+  const base = hasBg
+    ? await sharp(i.bg!).resize(W, H, { fit: "cover", position: "attention" }).toBuffer()
+    : await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#2b3a8c"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><circle cx="900" cy="980" r="330" fill="#7c9cff" opacity=".16"/><circle cx="170" cy="1130" r="260" fill="#b07cff" opacity=".14"/><circle cx="640" cy="820" r="120" fill="#fff" opacity=".05"/></svg>`)).png().toBuffer();
+
+  const shade = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>
+    <linearGradient id="t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070b1c" stop-opacity=".94"/><stop offset=".62" stop-color="#070b1c" stop-opacity=".8"/><stop offset="1" stop-color="#070b1c" stop-opacity="0"/></linearGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070b1c" stop-opacity="0"/><stop offset="1" stop-color="#070b1c" stop-opacity=".85"/></linearGradient></defs>
+    <rect width="${W}" height="800" fill="url(#t)"/><rect y="1170" width="${W}" height="180" fill="url(#b)"/></svg>`);
+
+  let head!: Buffer, hh = 0;
+  for (const size of [80, 72, 64, 56, 48, 42]) {
+    head = await text(`<span foreground="#ffffff">${esc(i.title)}</span>`, `Noto Sans Bengali Bold ${size}`, W - 120);
+    hh = (await sharp(head).metadata()).height!;
+    if (hh <= 540) break;
   }
-  const cat = await text(`<span foreground="#9db4ff">${esc(categoryLabel)}</span>`, "Noto Sans Bengali Bold 38", 500);
-  const brand = await text(`<span foreground="#c9d3ff">নীহারিকা · Niharika</span>`, "Noto Sans Bengali 36", 700);
-  const ai = await text(`<span foreground="#8e9ad0">AI-সহায়তায় তৈরি</span>`, "Noto Sans Bengali 28", 400);
+  const site = await text(`<span foreground="#e8ecff">niiharika.vercel.app</span>`, "Noto Sans Bengali 28", 460);
+  const name = await text(`<span foreground="#ffffff">নীহারিকা</span>`, "Noto Sans Bengali Bold 40", 300);
+  const nameW = (await sharp(name).metadata()).width!;
+  const src = await text(`<span foreground="#9db4ff">${esc(i.categoryLabel)}</span><span foreground="#c9d3ff">  •  সূত্র: ${esc(i.source)}</span>`, "Noto Sans Bengali 30", W - 120);
 
-  return sharp(bg)
-    .composite([
-      { input: cat, left: 70, top: 130 },
-      { input: titleImg, left: 70, top: 230 },
-      { input: brand, left: 70, top: 915 },
-      { input: ai, left: 70, top: 975 },
-    ])
-    .jpeg({ quality: 90 })
-    .toBuffer();
+  const layers: sharp.OverlayOptions[] = [
+    { input: shade, left: 0, top: 0 },
+    { input: site, left: 50, top: 52 },
+    { input: Buffer.from(MARK), left: W - 50 - nameW - 74, top: 40 },
+    { input: name, left: W - 50 - nameW, top: 50 },
+    { input: head, left: 60, top: 150 },
+    { input: src, left: 60, top: 150 + hh + 22 },
+  ];
+  if (i.credit) {
+    const cr = await text(`<span foreground="#dfe5ff">${esc(i.credit)}</span>`, "Noto Sans Bengali 24", 500);
+    const crW = (await sharp(cr).metadata()).width!;
+    layers.push({ input: cr, left: W - 50 - crW, top: H - 62 });
+  }
+  return sharp(base).composite(layers).jpeg({ quality: 90 }).toBuffer();
 }

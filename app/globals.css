@@ -4,17 +4,16 @@
 body { margin:0; background:var(--bg); color:var(--text); line-height:1.75; }
 a { color:var(--accent); text-decoration:none; }
 .head { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; }
-.logo { font-size:1.5rem; font-weight:700; color:var(--text); }
+.logo { font-size:1.45rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:10px; }
+.logo .mark { width:34px; height:34px; flex:none; }
 .logo small { font-size:.8rem; color:var(--muted); margin-left:6px; }
 .nav { display:flex; gap:14px; flex-wrap:wrap; font-size:.95rem; }
 .wrap { max-width:780px; margin:0 auto; padding:20px; }
 .card { background:var(--card); border-radius:12px; padding:16px; margin-bottom:14px; display:block; color:var(--text); }
 .card h2 { margin:6px 0; font-size:1.15rem; }
-.card img { width:100%; border-radius:8px; }
 .meta { color:var(--muted); font-size:.85rem; }
-.foot { text-align:center; padding:24px; color:var(--muted); font-size:.9rem; }
 .badge { display:inline-block; border:1px solid var(--line); border-radius:999px; padding:0 10px; font-size:.8rem; color:var(--muted); }
-article img { max-width:100%; border-radius:10px; }
+img { max-width:100%; height:auto; }
 input, textarea, select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; margin:4px 0 12px; }
 input[type=checkbox], input[type=radio] { width:auto; margin:0 6px 0 0; }
 textarea { min-height:220px; }
@@ -23,3 +22,30 @@ textarea { min-height:220px; }
 .row { background:var(--card); border-radius:10px; padding:12px; margin-bottom:10px; }
 .tabs a { margin-right:12px; } .tabs a.on { font-weight:700; text-decoration:underline; }
 .err { color:#ff6b6b; }
+
+.nav .lang { border:1px solid var(--line); border-radius:999px; padding:0 12px; }
+/* তালিকার কার্ড: বামে ছোট ব্যানার, ডানে লেখা */
+.item { display:flex; gap:14px; align-items:flex-start; }
+.item .thumb { width:96px; height:120px; object-fit:cover; border-radius:8px; flex:none; background:var(--line); }
+.item .info { min-width:0; flex:1; }
+.item h2 { font-size:1.08rem; line-height:1.45; }
+.item p { margin:4px 0; font-size:.92rem; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+@media (min-width:640px) { .item .thumb { width:132px; height:165px; } }
+/* আর্টিকেলের মূল ব্যানার: সব স্ক্রিনে পুরোটা দেখা যায় */
+img.hero { display:block; width:100%; max-width:520px; height:auto; margin:14px auto; border-radius:12px; }
+/* footer */
+.sfoot { margin-top:40px; border-top:1px solid var(--line); background:var(--card); }
+.sfoot-in { max-width:960px; margin:0 auto; padding:32px 20px 16px; display:grid; grid-template-columns:2fr 1fr 1fr 1.6fr; gap:28px; }
+.sfoot h4 { margin:0 0 10px; font-size:.95rem; }
+.sfoot ul { list-style:none; padding:0; margin:0; }
+.sfoot li { margin:6px 0; }
+.sfoot p { color:var(--muted); font-size:.9rem; margin:8px 0 0; }
+.sfoot a { color:var(--muted); }
+.sfoot a:hover { color:var(--accent); }
+.sfoot-logo { display:flex; align-items:center; gap:8px; }
+.sfoot-logo .mark { width:30px; height:30px; }
+.sfoot .muted { color:var(--muted); font-size:.85rem; }
+.icons a { display:flex; align-items:center; gap:8px; word-break:break-all; }
+.ico { width:18px; height:18px; flex:none; }
+.sfoot-bar { max-width:960px; margin:0 auto; padding:14px 20px 26px; border-top:1px solid var(--line); display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 20px; color:var(--muted); font-size:.82rem; }
+@media (max-width:760px) { .sfoot-in { grid-template-columns:1fr 1fr; } .sfoot-col.brand { grid-column:1 / -1; } }

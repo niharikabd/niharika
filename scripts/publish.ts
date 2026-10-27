@@ -4,6 +4,7 @@ import { getSettings } from "../lib/settings";
 import { log } from "../lib/log";
 import { CATS } from "../lib/site";
 import { makeBanner } from "./banner";
+import { getBackground } from "./image";
 import { postTelegram, telegramReady, alertAdmin } from "./telegram";
 import { postFacebook, postInstagram, facebookReady, instagramReady } from "./meta";
 
@@ -16,16 +17,17 @@ const SENDERS: Record<string, { ready: () => boolean; send: (a: any) => Promise<
 
 async function ensureBanners(db: any) {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const { data } = await db.from("articles").select("id,slug,title_bn,category").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(10);
+  const { data } = await db.from("articles").select("id,slug,title_bn,title_en,category,source_links,image_prompt").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(6);
   for (const a of data ?? []) {
     try {
-      const buf = await makeBanner(a.title_bn, CATS[a.category] ?? "");
+      const bg = await getBackground(a);
+      const buf = await makeBanner({ title: a.title_bn, categoryLabel: CATS[a.category] ?? "", source: a.source_links?.[0]?.name ?? "", bg: bg?.buf, credit: bg?.credit });
       const path = `${a.slug}.jpg`;
       const up = await db.storage.from("banners").upload(path, buf, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
       if (up.error) throw new Error(up.error.message);
       const { data: pub } = db.storage.from("banners").getPublicUrl(path);
-      await db.from("articles").update({ banner_url: pub.publicUrl }).eq("id", a.id);
-      await log("info", "banner", `ব্যানার তৈরি: ${a.slug}`);
+      await db.from("articles").update({ banner_url: `${pub.publicUrl}?v=${Date.now()}`, image_credit: bg?.credit ?? null }).eq("id", a.id);
+      await log("info", "banner", `ব্যানার তৈরি (${bg ? bg.credit : "ডিজাইন-ব্যাকগ্রাউন্ড"}): ${a.slug}`);
     } catch (e) {
       await log("error", "banner", (e as Error).message, { slug: a.slug });
     }
