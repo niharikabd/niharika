@@ -1,6 +1,4 @@
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const api = (m: string) => `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${m}`;
-const SITE = () => process.env.SITE_URL || "https://niiharika.vercel.app";
 
 async function call(method: string, body: object): Promise<string> {
   const r = await fetch(api(method), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -11,18 +9,11 @@ async function call(method: string, body: object): Promise<string> {
 
 export function telegramReady() { return !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID); }
 
+// শুধু ছবি + ক্যাপশন (কোনো সূত্র/AI-চিহ্ন/লিংক নয়)
 export async function postTelegram(a: any): Promise<string> {
-  const src = a.source_links?.[0];
-  const tail = `\n\n🔗 ${SITE()}/article/${a.slug}\n${src ? `📰 সূত্র: <a href="${src.url}">${esc(src.name)}</a>\n` : ""}🤖 AI-সহায়তায় তৈরি`;
-  const head = `<b>${esc(a.title_bn)}</b>\n\n`;
-  const chat_id = process.env.TELEGRAM_CHANNEL_ID!;
-  let body = esc(a.social_caption || a.excerpt || "");
-  if (a.banner_url) {
-    const room = 1000 - (head.length + tail.length);
-    const cap = head + (body.length > room ? body.slice(0, Math.max(room - 1, 0)) + "…" : body) + tail;
-    try { return await call("sendPhoto", { chat_id, photo: a.banner_url, caption: cap, parse_mode: "HTML" }); } catch { /* ছবি ব্যর্থ হলে টেক্সটে ফলব্যাক */ }
-  }
-  return call("sendMessage", { chat_id, text: head + body + tail, parse_mode: "HTML" });
+  if (!a.banner_url) throw new Error("ছবি নেই");
+  const caption = String(a.social_caption || `${a.title_bn}\n\n${a.excerpt ?? ""}`).slice(0, 1000);
+  return call("sendPhoto", { chat_id: process.env.TELEGRAM_CHANNEL_ID!, photo: a.banner_url, caption });
 }
 
 export async function alertAdmin(text: string) {

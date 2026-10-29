@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { CATS } from "@/lib/site";
-
-const Icon = ({ children }: { children: React.ReactNode }) => (
-  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
-);
+import { Facebook, Instagram, Telegram, Mail, Rss } from "./icons";
 
 export default function Footer() {
   return (
@@ -39,10 +36,14 @@ export default function Footer() {
         <div className="sfoot-col">
           <h4>যোগাযোগ</h4>
           <ul className="icons">
-            <li><a href="mailto:contact.niiharika@gmail.com"><Icon><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></Icon>contact.niiharika@gmail.com</a></li>
-            <li><a href="https://www.facebook.com/niiharika.fb" target="_blank" rel="noopener"><Icon><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></Icon>Facebook · niiharika.fb</a></li>
-            <li><a href="/rss.xml"><Icon><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></Icon>RSS ফিড</a></li>
+            <li><a href="mailto:contact.niiharika@gmail.com"><Mail size={18} /><span>contact.niiharika@gmail.com</span></a></li>
+            <li><a href="/rss.xml"><Rss size={18} /><span>RSS ফিড</span></a></li>
           </ul>
+          <div className="social" aria-label="সোশ্যাল মিডিয়া">
+            <a href="https://www.facebook.com/niiharika.fb" target="_blank" rel="noopener noreferrer" aria-label="Facebook: niiharika.fb" title="Facebook"><Facebook size={20} /></a>
+            <a href="https://www.instagram.com/niiharika.bd" target="_blank" rel="noopener noreferrer" aria-label="Instagram: niiharika.bd" title="Instagram"><Instagram size={20} /></a>
+            <a href="https://t.me/niiharikatelegram" target="_blank" rel="noopener noreferrer" aria-label="Telegram: niiharikatelegram" title="Telegram"><Telegram size={20} /></a>
+          </div>
         </div>
       </div>
       <div className="sfoot-bar">

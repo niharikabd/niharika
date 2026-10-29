@@ -1,6 +1,5 @@
 // Facebook Page ও Instagram (Graph API)। একই Page access token দুটোতেই চলে।
-const V = () => process.env.GRAPH_VERSION || "v21.0";
-const SITE = () => process.env.SITE_URL || "https://niiharika.vercel.app";
+const V = () => process.env.GRAPH_VERSION || "v26.0";
 
 async function graph(path: string, params: Record<string, string>, method: "POST" | "GET" = "POST") {
   const qs = new URLSearchParams({ ...params, access_token: process.env.FB_PAGE_ACCESS_TOKEN! });
@@ -15,18 +14,19 @@ async function graph(path: string, params: Record<string, string>, method: "POST
 export const facebookReady = () => !!(process.env.FB_PAGE_ID && process.env.FB_PAGE_ACCESS_TOKEN);
 export const instagramReady = () => !!(process.env.IG_USER_ID && process.env.FB_PAGE_ACCESS_TOKEN);
 
+const captionOf = (a: any) => String(a.social_caption || `${a.title_bn}\n\n${a.excerpt ?? ""}`);
+
+// শুধু ছবি + ক্যাপশন (লিংক পোস্ট নয়; কোনো সূত্র/AI-চিহ্ন নয়)
 export async function postFacebook(a: any): Promise<string> {
-  const src = a.source_links?.[0];
-  const message = `${a.social_caption || `${a.title_bn}\n\n${a.excerpt ?? ""}`}\n\n${src ? `📰 সূত্র: ${src.name}\n` : ""}🤖 AI-সহায়তায় তৈরি`;
-  const j = await graph(`${process.env.FB_PAGE_ID}/feed`, { message, link: `${SITE()}/article/${a.slug}` });
-  return j.id;
+  if (!a.banner_url) throw new Error("ছবি নেই");
+  const j = await graph(`${process.env.FB_PAGE_ID}/photos`, { url: a.banner_url, caption: captionOf(a), published: "true" });
+  return j.post_id ?? j.id;
 }
 
 export async function postInstagram(a: any): Promise<string> {
-  if (!a.banner_url) throw new Error("ব্যানার নেই");
-  const caption = `${a.social_caption || `${a.title_bn}\n\n${a.excerpt ?? ""}`}\n\n🔗 পুরো খবর: ${SITE().replace("https://", "")}\n🤖 AI-সহায়তায় তৈরি`.slice(0, 2200);
+  if (!a.banner_url) throw new Error("ছবি নেই");
   const ig = process.env.IG_USER_ID!;
-  const c = await graph(`${ig}/media`, { image_url: a.banner_url, caption });
+  const c = await graph(`${ig}/media`, { image_url: a.banner_url, caption: captionOf(a).slice(0, 2200) });
   for (let i = 0; i < 6; i++) {
     const st = await graph(c.id, { fields: "status_code" }, "GET");
     if (st.status_code === "FINISHED") break;

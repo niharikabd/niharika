@@ -4,9 +4,9 @@ import { logout } from "./actions";
 export function Nav({ email }: { email: string }) {
   return (
     <div className="row">
-      <a href={A()}>ড্যাশবোর্ড</a> · <a href={A("/settings")}>সেটিংস</a> · <a href={A("/admins")}>অ্যাডমিন</a> · <a href={A("/logs")}>লগ</a>
+      <a href={A()}>Dashboard</a> · <a href={A("/settings")}>Settings</a> · <a href={A("/admins")}>Admins</a> · <a href={A("/account")}>Account</a> · <a href={A("/logs")}>Logs</a>
       <span className="meta"> · {email}</span>
-      <form action={logout} style={{ display: "inline" }}><button className="btn gray" style={{ marginLeft: 8 }}>লগআউট</button></form>
+      <form action={logout} style={{ display: "inline" }}><button className="btn gray" style={{ marginLeft: 8 }}>Sign out</button></form>
     </div>
   );
 }

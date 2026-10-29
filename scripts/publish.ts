@@ -2,9 +2,7 @@ import { adminClient } from "../lib/supabase";
 import { markPublished } from "../lib/publish-core";
 import { getSettings } from "../lib/settings";
 import { log } from "../lib/log";
-import { CATS } from "../lib/site";
-import { makeBanner } from "./banner";
-import { getBackground } from "./image";
+import { buildBanner } from "./banner-flow";
 import { postTelegram, telegramReady, alertAdmin } from "./telegram";
 import { postFacebook, postInstagram, facebookReady, instagramReady } from "./meta";
 
@@ -15,23 +13,11 @@ const SENDERS: Record<string, { ready: () => boolean; send: (a: any) => Promise<
   instagram: { ready: instagramReady, send: postInstagram },
 };
 
-async function ensureBanners(db: any) {
+// আগে প্রকাশিত কিন্তু ব্যানারহীন লেখা (পুরনো) ঠিক করা
+async function ensureBanners(db: any, mode: "open" | "all") {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const { data } = await db.from("articles").select("id,slug,title_bn,title_en,category,source_links,image_prompt").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(6);
-  for (const a of data ?? []) {
-    try {
-      const bg = await getBackground(a);
-      const buf = await makeBanner({ title: a.title_bn, categoryLabel: CATS[a.category] ?? "", source: a.source_links?.[0]?.name ?? "", bg: bg?.buf, credit: bg?.credit });
-      const path = `${a.slug}.jpg`;
-      const up = await db.storage.from("banners").upload(path, buf, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
-      if (up.error) throw new Error(up.error.message);
-      const { data: pub } = db.storage.from("banners").getPublicUrl(path);
-      await db.from("articles").update({ banner_url: `${pub.publicUrl}?v=${Date.now()}`, image_credit: bg?.credit ?? null }).eq("id", a.id);
-      await log("info", "banner", `ব্যানার তৈরি (${bg ? bg.credit : "ডিজাইন-ব্যাকগ্রাউন্ড"}): ${a.slug}`);
-    } catch (e) {
-      await log("error", "banner", (e as Error).message, { slug: a.slug });
-    }
-  }
+  const { data } = await db.from("articles").select("id,slug,title_bn,title_en,category,source_links,image_prompt,source_image_url").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(4);
+  for (const a of data ?? []) await buildBanner(db, a, mode);
 }
 
 export async function publishAll(): Promise<boolean> {
@@ -39,14 +25,15 @@ export async function publishAll(): Promise<boolean> {
   let changed = false;
 
   // ১) approved → website-এ published
-  const { data: approved } = await db.from("articles").select("id,slug").eq("status", "approved");
-  for (const a of approved ?? []) { await markPublished(db, a.id); changed = true; await log("info", "publish", `website-এ প্রকাশ: ${a.slug}`); }
+  // (ছবি/ব্যানার না থাকলে প্রকাশ হয় না; ব্যানার আগেই পাইপলাইনে তৈরি হয়)
+  const s = await getSettings(db);
+  const { data: approved } = await db.from("articles").select("id,slug").eq("status", "approved").not("banner_url", "is", null);
+  for (const a of approved ?? []) { if (await markPublished(db, a.id)) { changed = true; await log("info", "publish", `website-এ প্রকাশ: ${a.slug}`); } }
 
-  // ২) ব্যানার
-  await ensureBanners(db);
+  // ২) পুরনো ব্যানারহীন প্রকাশিত লেখা
+  await ensureBanners(db, s.source_images);
 
   // ৩) social queue (প্রতিটি platform আলাদা retry)
-  const s = await getSettings(db);
   const { data: queue } = await db.from("publish_queue").select("*, articles(*)")
     .in("platform", Object.keys(SENDERS)).eq("status", "pending").lt("attempts", MAX_ATTEMPTS)
     .or(`next_retry_at.is.null,next_retry_at.lte.${new Date().toISOString()}`)
@@ -57,7 +44,7 @@ export async function publishAll(): Promise<boolean> {
     if (!s.platforms[q.platform]) continue;                         // সেটিংসে বন্ধ
     if (!sender.ready()) { await log("warn", q.platform, "credentials বসানো হয়নি, বাদ দেওয়া হলো"); continue; }
     if (q.articles.status !== "published") continue;
-    if (q.platform === "instagram" && !q.articles.banner_url) continue; // ব্যানার তৈরির অপেক্ষা
+    if (!q.articles.banner_url) continue;                           // ছবি ছাড়া কোনো পোস্ট নয়
     try {
       const id = await sender.send(q.articles);
       await db.from("publish_queue").update({ status: "done", external_id: id, attempts: q.attempts + 1, last_error: null }).eq("id", q.id);

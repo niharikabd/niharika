@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { SITE, CATS, bn } from "@/lib/site";
 import { bySlug, related } from "@/lib/queries";
 import { Card } from "../../components";
+import ShareButton from "../../share";
 
 export const revalidate = 600;
 type P = { params: Promise<{ slug: string }> };
@@ -47,7 +48,6 @@ export default async function Article({ params }: P) {
       ],
     },
   ];
-  const share = encodeURIComponent(`${SITE}/article/${a.slug}`);
   return (
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
@@ -58,11 +58,7 @@ export default async function Article({ params }: P) {
       <div style={{ whiteSpace: "pre-wrap" }}>{a.body_bn}</div>
       <h3>মূল সূত্র</h3>
       <ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul>
-      <p>
-        <a className="btn" href={`https://www.facebook.com/sharer/sharer.php?u=${share}`} target="_blank" rel="noopener">Facebook</a>
-        <a className="btn gray" href={`https://t.me/share/url?url=${share}`} target="_blank" rel="noopener">Telegram</a>
-        <Link className="btn gray" href={`/en/article/${a.slug}`}>English</Link>
-      </p>
+      <ShareButton url={`${SITE}/article/${a.slug}`} title={a.title_bn || a.title_en} />
       {!!rel.length && <><h3>আরও পড়ুন</h3>{rel.map((r) => <Card key={r.slug} a={r} />)}</>}
     </article>
   );

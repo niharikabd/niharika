@@ -34,47 +34,85 @@ function parse(text: string): Generated {
   return j;
 }
 
+type Task = "write" | "curate";
+
 async function geminiText(model: string, prompt: string, temperature: number): Promise<string> {
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature } }),
   });
-  if (!r.ok) throw new Error(`gemini(${model}) ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 140)}`);
   return (await r.json()).candidates[0].content.parts[0].text;
 }
 
-async function groqText(prompt: string, temperature: number): Promise<string> {
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+// OpenAI-সামঞ্জস্যপূর্ণ API (Groq, Mistral, OpenRouter)
+async function chatText(url: string, key: string, model: string, prompt: string, temperature: number, extraHeaders: Record<string, string> = {}): Promise<string> {
+  const r = await fetch(url, {
+    method: "POST", signal: AbortSignal.timeout(90000),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, ...extraHeaders },
     body: JSON.stringify({ model, temperature, response_format: { type: "json_object" }, messages: [{ role: "user", content: prompt }] }),
   });
-  if (!r.ok) throw new Error(`groq ${r.status}: ${(await r.text()).slice(0, 160)}`);
-  return (await r.json()).choices[0].message.content;
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 140)}`);
+  const j = await r.json();
+  const t = j?.choices?.[0]?.message?.content;
+  if (!t) throw new Error("empty response");
+  return t;
 }
 
-export function hasAI() { return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY); }
+async function cloudflareText(prompt: string, temperature: number): Promise<string> {
+  const id = process.env.CF_ACCOUNT_ID, tok = process.env.CF_API_TOKEN;
+  const model = process.env.CF_TEXT_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${model}`, {
+    method: "POST", signal: AbortSignal.timeout(90000),
+    headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: prompt + "\n\nশুধু বৈধ JSON দাও।" }], temperature, max_tokens: 2048 }),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 140)}`);
+  const t = (await r.json())?.result?.response;
+  if (!t) throw new Error("empty response");
+  return typeof t === "string" ? t : JSON.stringify(t);
+}
 
-// একাধিক মডেল/প্রোভাইডারে ক্রমান্বয়ে চেষ্টা; validate ব্যর্থ হলেও পরেরটায় যায়
-async function llm<T>(prompt: string, temperature: number, validate: (t: string) => T): Promise<T> {
-  const providers: [string, () => Promise<string>][] = [];
-  if (process.env.GEMINI_API_KEY) {
-    const models = [...new Set([process.env.GEMINI_MODEL, "gemini-3.8-flash", "gemini-3.6-flash"].filter(Boolean) as string[])];
-    for (const m of models) providers.push([`gemini:${m}`, () => geminiText(m, prompt, temperature)]);
-  }
-  if (process.env.GROQ_API_KEY) { providers.push(["groq", () => groqText(prompt, temperature)]); providers.push(["groq", () => groqText(prompt, temperature)]); }
-  if (!providers.length) throw new Error("কোনো AI key নেই (GEMINI_API_KEY বা GROQ_API_KEY GitHub Secrets-এ দিন)");
+export function hasAI() {
+  return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY || process.env.MISTRAL_API_KEY || process.env.OPENROUTER_API_KEY || (process.env.CF_ACCOUNT_ID && process.env.CF_API_TOKEN));
+}
+
+// Gemini ফ্রি-টিয়ারে প্রতিটি মডেলের আলাদা দৈনিক কোটা (3.x Flash ~২০/দিন, Flash-Lite অনেক বেশি)। তাই একাধিক মডেল ঘুরিয়ে ব্যবহার।
+function geminiModels(task: Task): string[] {
+  const custom = (process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const quality = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"];
+  const lite = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.6-flash"];
+  if (custom.length) return task === "curate" ? [...custom.filter((m) => /lite/.test(m)), ...custom.filter((m) => !/lite/.test(m))] : custom;
+  return task === "curate" ? lite : quality;
+}
+
+const dead = new Set<string>();   // এই রানে কোটা শেষ/অনুপলব্ধ প্রোভাইডার আর চেষ্টা করা হয় না
+
+// প্রোভাইডার ক্রমে চেষ্টা; কোটা/404 হলে পরেরটায়। validate ব্যর্থ হলেও পরেরটায় যায়।
+async function llm<T>(prompt: string, temperature: number, validate: (t: string) => T, task: Task): Promise<T> {
+  const P: [string, () => Promise<string>][] = [];
+  if (process.env.GEMINI_API_KEY) for (const m of geminiModels(task)) P.push([`gemini:${m}`, () => geminiText(m, prompt, temperature)]);
+  if (process.env.GROQ_API_KEY) P.push(["groq", () => chatText("https://api.groq.com/openai/v1/chat/completions", process.env.GROQ_API_KEY!, process.env.GROQ_MODEL || "llama-3.3-70b-versatile", prompt, temperature)]);
+  if (process.env.MISTRAL_API_KEY) P.push(["mistral", () => chatText("https://api.mistral.ai/v1/chat/completions", process.env.MISTRAL_API_KEY!, process.env.MISTRAL_MODEL || "mistral-small-latest", prompt, temperature)]);
+  if (process.env.OPENROUTER_API_KEY) P.push(["openrouter", () => chatText("https://openrouter.ai/api/v1/chat/completions", process.env.OPENROUTER_API_KEY!, process.env.OPENROUTER_MODEL || "openrouter/free", prompt, temperature, { "X-Title": "Niiharika" })]);
+  if (process.env.CF_ACCOUNT_ID && process.env.CF_API_TOKEN) P.push(["cloudflare", () => cloudflareText(prompt, temperature)]);
+  if (!P.length) throw new Error("কোনো AI key নেই (GEMINI_API_KEY ইত্যাদি GitHub Secrets-এ দিন)");
   const errors: string[] = [];
-  for (const [name, fn] of providers) {
-    try { return validate(await fn()); } catch (e) { errors.push(`${name}: ${(e as Error).message}`); }
+  for (const [name, fn] of P) {
+    if (dead.has(name)) continue;
+    try { return validate(await fn()); }
+    catch (e) {
+      const msg = (e as Error).message;
+      if (/HTTP (404|429|403|401)/.test(msg)) dead.add(name);   // কোটা/মডেল/কী সমস্যা: এই রানে আর নয়
+      errors.push(`${name}: ${msg}`);
+    }
   }
-  throw new Error("AI failed: " + errors.join(" | "));
+  throw new Error("সব AI ব্যর্থ: " + errors.join(" | "));
 }
 
 export async function generate(title: string, summary: string, source: string, url: string): Promise<Generated> {
-  return llm(PROMPT(title, summary, source, url), 0.7, parse);
+  return llm(PROMPT(title, summary, source, url), 0.7, parse, "write");
 }
 
 // সম্পাদকীয় বাছাই: কোনটি সবচেয়ে গুরুত্বপূর্ণ ও পাঠকের কাজের খবর
@@ -97,5 +135,5 @@ ${list}
     const j = JSON.parse(t.replace(/```json|```/g, "").trim());
     if (!Number.isInteger(j.index) || j.index < 0 || j.index >= items.length) throw new Error("bad index");
     return { index: j.index, reason: String(j.reason ?? "") };
-  });
+  }, "curate");
 }

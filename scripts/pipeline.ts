@@ -7,9 +7,28 @@ import { log } from "../lib/log";
 import { generate, hasAI, curate } from "./ai";
 import { alertAdmin } from "./telegram";
 import { publishAll } from "./publish";
+import { buildBanner } from "./banner-flow";
 
 const db = adminClient();
-const parser = new Parser({ timeout: 15000 });
+const parser = new Parser({
+  timeout: 15000,
+  headers: { "User-Agent": "Mozilla/5.0 (compatible; NiiharikaBot/1.0; +https://niiharika.vercel.app)", Accept: "application/rss+xml, application/xml, text/xml, */*" },
+  customFields: { item: [["media:content", "mediaContent", { keepArray: true }], ["media:thumbnail", "mediaThumb"], ["content:encoded", "contentEncoded"]] },
+});
+
+// RSS আইটেম থেকে ছবির ঠিকানা (enclosure, media:content, thumbnail, বা লেখার ভেতরের প্রথম <img>)
+function feedImage(it: any): string | null {
+  const enc = it.enclosure;
+  if (enc?.url && (!enc.type || String(enc.type).startsWith("image"))) return enc.url;
+  const mc = Array.isArray(it.mediaContent) ? it.mediaContent : [];
+  const best = mc.map((m: any) => m?.$ ?? {}).filter((m: any) => m.url && (!m.medium || m.medium === "image") && (!m.type || String(m.type).startsWith("image")))
+    .sort((a: any, b: any) => Number(b.width ?? 0) - Number(a.width ?? 0))[0];
+  if (best?.url) return best.url;
+  if (it.mediaThumb?.$?.url) return it.mediaThumb.$.url;
+  const html = String(it.contentEncoded || it.content || "");
+  const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m ? m[1] : null;
+}
 const BDT = 6 * 3600 * 1000;
 const SENSITIVE = /politic|election|minister|parliament|murder|crime|arrest|police|health|disease|vaccine|cancer|virus|outbreak|রাজনীতি|নির্বাচন|হত্যা|গ্রেপ্তার/i;
 
@@ -28,7 +47,7 @@ async function collect() {
         const { error } = await db.from("raw_items").insert({
           source_id: s.id, url: it.link, url_hash, title: it.title,
           summary: (it.contentSnippet || it.content || "").slice(0, 1500),
-          published_at: it.isoDate ?? null, status: dup ? "duplicate" : "new",
+          published_at: it.isoDate ?? null, status: dup ? "duplicate" : "new", image_url: feedImage(it),
         });
         if (!error && !dup) added++;
       }
@@ -85,6 +104,12 @@ async function pickCandidate(ok: any[]) {
   return top[Math.floor(Math.random() * top.length)];
 }
 
+// স্বয়ংক্রিয় অনুমোদনের শর্ত: ultra = সব খবর (রাজনীতি/অপরাধ/স্বাস্থ্যসহ), auto = নির্ভরযোগ্য ও অসংবেদনশীল, manual = কখনো নয়
+function isEligible(s: Settings, sensitive: boolean, score: number) {
+  if (s.approval_mode === "ultra") return true;
+  return s.approval_mode === "auto" && !sensitive && score >= 75;
+}
+
 async function writeOne(s: Settings) {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
   const { data: items } = await db.from("raw_items").select("*, sources(name, category, trust_level)").eq("status", "new").gte("created_at", since).limit(200);
@@ -99,18 +124,36 @@ async function writeOne(s: Settings) {
     const sensitive = SENSITIVE.test(`${pick.title} ${pick.summary ?? ""}`);
     const status = s.approval_mode === "auto" && !sensitive && score >= 75 ? "approved" : "draft";
 
-    const { error } = await db.from("articles").insert({
+    const { data: art, error } = await db.from("articles").insert({
       slug: slugify(g.title_en), category: pick.sources.category,
       title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
-      social_caption: g.social_caption_bn ?? null, image_prompt: g.image_prompt ?? null,
-      source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status,
-    });
+      social_caption: g.social_caption_bn ?? null, image_prompt: g.image_prompt ?? null, source_image_url: pick.image_url ?? null,
+      source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status: "draft",
+    }).select().single();
     if (error) throw new Error(error.message);
     await db.from("raw_items").update({ status: "used" }).eq("id", pick.id);
-    await log("info", "write", `লেখা তৈরি (${status}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}, ${pick.sources.category}): ${g.title_en}`);
+
+    // ছবি আগে। ছবি না হলে লেখা draft-ই থাকে, পরের রানগুলোতে আবার চেষ্টা হয়; ছবি ছাড়া কিছু প্রকাশ বা পোস্ট হয় না
+    const hasImg = await buildBanner(db, art, s.source_images);
+    const eligible = isEligible(s, sensitive, score);
+    if (hasImg && eligible) await db.from("articles").update({ status: "approved" }).eq("id", art.id);
+    await log("info", "write", `লেখা তৈরি (${hasImg ? (eligible ? `approved/${s.approval_mode}` : "draft, ছবিসহ") : "draft, ছবি নেই"}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}, ${pick.sources.category}): ${g.title_en}`);
   } catch (e) {
     await log("error", "write", (e as Error).message, { raw_item: pick.id });
     await alertAdmin(`❌ নীহারিকা: লেখা ব্যর্থ\n${(e as Error).message}`);
+  }
+}
+
+// ছবি তৈরি হয়নি এমন লেখাগুলোতে আবার চেষ্টা (সর্বোচ্চ ৩ দিন পুরনো)
+async function retryImages(s: Settings) {
+  const since = new Date(Date.now() - 3 * 864e5).toISOString();
+  const { data } = await db.from("articles").select("*").in("status", ["draft", "approved"]).is("banner_url", null).gte("created_at", since).order("created_at", { ascending: false }).limit(4);
+  for (const a of data ?? []) {
+    const ok = await buildBanner(db, a, s.source_images);
+    const sensitive = SENSITIVE.test(`${a.title_en ?? ""} ${a.title_bn ?? ""} ${a.excerpt ?? ""}`);
+    if (ok && a.status === "draft" && isEligible(s, sensitive, a.verification_score ?? 0)) {
+      await db.from("articles").update({ status: "approved" }).eq("id", a.id);
+    }
   }
 }
 
@@ -125,6 +168,7 @@ async function main() {
     await log("info", "quota", `প্রতিদিন ${s.posts_per_day}টি, এই রানে লেখা হবে ${n}টি, মোড: ${s.approval_mode}`);
     for (let i = 0; i < n; i++) await writeOne(s);
   }
+  await retryImages(s);
 
   const changed = await publishAll();
 
