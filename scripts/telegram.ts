@@ -1,3 +1,5 @@
+import { telegramCaption } from "./social-text";
+
 const api = (m: string) => `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/${m}`;
 
 async function call(method: string, body: object): Promise<string> {
@@ -9,11 +11,10 @@ async function call(method: string, body: object): Promise<string> {
 
 export function telegramReady() { return !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHANNEL_ID); }
 
-// শুধু ছবি + ক্যাপশন (কোনো সূত্র/AI-চিহ্ন/লিংক নয়)
+// ছবি + ক্যাপশন + ওয়েবসাইটের লিংক + ইংরেজি হ্যাশট্যাগ (কোনো AI-চিহ্ন/সূত্রের নাম নয়)
 export async function postTelegram(a: any): Promise<string> {
   if (!a.banner_url) throw new Error("ছবি নেই");
-  const caption = String(a.social_caption || `${a.title_bn}\n\n${a.excerpt ?? ""}`).slice(0, 1000);
-  return call("sendPhoto", { chat_id: process.env.TELEGRAM_CHANNEL_ID!, photo: a.banner_url, caption });
+  return call("sendPhoto", { chat_id: process.env.TELEGRAM_CHANNEL_ID!, photo: a.banner_url, caption: telegramCaption(a) });
 }
 
 export async function alertAdmin(text: string) {

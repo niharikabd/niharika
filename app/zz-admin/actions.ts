@@ -114,6 +114,7 @@ export async function saveSettingsAction(fd: FormData) {
     platforms: Object.fromEntries(PLATFORMS.map((p) => [p, fd.get(`p_${p}`) === "on"])),
     categories: Object.fromEntries(CATEGORIES.map((c) => [c, fd.get(`c_${c}`) === "on"])),
     source_images: s(fd, "source_images") === "open" ? "open" : "all",
+    social_style: s(fd, "social_style") === "full" ? "full" : "short",
   });
   redirect(A("/settings?ok=1"));
 }

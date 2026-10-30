@@ -1,6 +1,6 @@
 import { publicClient } from "./supabase";
 
-const FIELDS = "slug,title_bn,title_en,excerpt,category,published_at,banner_url";
+const FIELDS = "slug,title_bn,title_en,excerpt,body_en,category,published_at,banner_url";
 
 export async function latest(limit = 30, category?: string) {
   let q = publicClient().from("articles").select(FIELDS).eq("status", "published").order("published_at", { ascending: false }).limit(limit);

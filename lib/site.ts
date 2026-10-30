@@ -9,3 +9,9 @@ export const bn = (d: string | Date | null | undefined) =>
 // অ্যাডমিন (ইংরেজি) প্যানেলের জন্য ইংরেজি তারিখ
 export const dt = (d: string | Date | null | undefined) =>
   d ? new Date(d).toLocaleString("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }) : "";
+
+export const SOCIAL = {
+  facebook: "https://www.facebook.com/niiharika.fb",
+  instagram: "https://www.instagram.com/niiharika.bd",
+  telegram: "https://t.me/niiharikatelegram",
+};

@@ -4,6 +4,7 @@ export type Settings = {
   platforms: Record<string, boolean>;
   categories: Record<string, boolean>;
   source_images: "open" | "all";
+  social_style: "full" | "short";
 };
 
 export const PLATFORMS = ["telegram", "facebook", "instagram"] as const;
@@ -18,6 +19,7 @@ export async function getSettings(db: any): Promise<Settings> {
     platforms: { telegram: true, facebook: false, instagram: false, ...(m.platforms_enabled ?? {}) },
     categories: { science: true, tech: true, bangladesh: true, world: true, ...(m.categories_enabled ?? {}) },
     source_images: m.source_images === "open" ? "open" : "all",
+    social_style: m.social_style === "full" ? "full" : "short",
   };
 }
 
@@ -28,5 +30,6 @@ export async function saveSettings(db: any, s: Settings) {
     { key: "platforms_enabled", value: s.platforms },
     { key: "categories_enabled", value: s.categories },
     { key: "source_images", value: s.source_images },
+    { key: "social_style", value: s.social_style },
   ].map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: "key" });
 }

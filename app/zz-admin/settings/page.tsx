@@ -32,8 +32,13 @@ export default async function Settings({ searchParams }: { searchParams: Promise
         <div className="row"><b>Categories to write</b><br />
           {CATEGORIES.map((c) => <label key={c} style={{ display: "block" }}><input type="checkbox" name={`c_${c}`} defaultChecked={s.categories[c]} />{CAT_EN[c]}</label>)}
         </div>
+        <div className="row"><b>Facebook / Instagram post style</b><br />
+          <label><input type="radio" name="social_style" value="short" defaultChecked={s.social_style === "short"} />Short post (hook + hashtags). 1st comment: full news. 2nd comment: article link + all social links</label><br />
+          <label><input type="radio" name="social_style" value="full" defaultChecked={s.social_style === "full"} />Full post (whole news + hashtags). Comment: article link + all social links</label>
+          <div className="meta">Telegram always gets the short caption + article link. Commenting needs the pages_manage_engagement and instagram_manage_comments permissions on your Meta token.</div>
+        </div>
         <div className="row"><b>Article images</b><br />
-          <label><input type="radio" name="source_images" value="all" defaultChecked={s.source_images === "all"} />Use the source article&apos;s own photo when available (credited on the image), otherwise an AI concept image</label><br />
+          <label><input type="radio" name="source_images" value="all" defaultChecked={s.source_images === "all"} />Use the source article&apos;s own clean photo when available (credited on the image), otherwise an AI concept image. Sites that put their own logo/name over the photo (e.g. Bangladeshi portals) are never used</label><br />
           <label><input type="radio" name="source_images" value="open" defaultChecked={s.source_images === "open"} />Use source photos only from open-licence sources (NASA, ESA, NOAA…), otherwise an AI concept image</label>
           <div className="meta">Note: most news photos are copyrighted. Using them is your decision and carries a takedown/strike risk, especially on Facebook and Instagram.</div>
         </div>

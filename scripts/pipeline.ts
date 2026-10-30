@@ -8,6 +8,7 @@ import { generate, hasAI, curate } from "./ai";
 import { alertAdmin } from "./telegram";
 import { publishAll } from "./publish";
 import { buildBanner } from "./banner-flow";
+import { CATS } from "../lib/site";
 
 const db = adminClient();
 const parser = new Parser({
@@ -80,7 +81,8 @@ function dayStartISO() {
   return new Date(bdt.getTime() - BDT).toISOString();
 }
 
-// আজ কোন ক্যাটাগরির কয়টি লেখা হয়েছে দেখে সবচেয়ে "পিছিয়ে" থাকা ক্যাটাগরি থেকে খবর বাছা
+// আজ কোন ক্যাটাগরির কয়টি লেখা হয়েছে দেখে সবচেয়ে "পিছিয়ে" থাকা ক্যাটাগরি থেকে খবর বাছা।
+// AI সম্পাদক বিভাগের শর্ত (যেমন "বাংলাদেশ" মানে সত্যিই বাংলাদেশের খবর, খেলা/বিনোদন বাদ) মিলিয়ে বাছে; কোনোটি উপযুক্ত না হলে পরের বিভাগে যায়।
 async function pickCandidate(ok: any[]) {
   const { data: today } = await db.from("articles").select("category").gte("created_at", dayStartISO()).neq("status", "rejected");
   const counts: Record<string, number> = {};
@@ -88,20 +90,26 @@ async function pickCandidate(ok: any[]) {
   const total = (today ?? []).length;
   const cats = [...new Set(ok.map((i) => i.sources.category as string))];
   cats.sort((a, b) => ((WEIGHT[b] ?? 0.1) * (total + 1) - (counts[b] ?? 0)) - ((WEIGHT[a] ?? 0.1) * (total + 1) - (counts[a] ?? 0)));
-  const pool = ok.filter((i) => i.sources.category === cats[0]);
-  pool.sort((a, b) => b.sources.trust_level - a.sources.trust_level || +new Date(b.published_at ?? 0) - +new Date(a.published_at ?? 0));
-  // সম্পাদকীয় বাছাই: সেরা ১০টির মধ্য থেকে AI সবচেয়ে গুরুত্বপূর্ণটি বাছে (একাধিক সূত্রে আসা খবর বেশি গুরুত্ব পায়)
-  const top10 = pool.slice(0, 10);
-  if (top10.length > 1 && hasAI()) {
-    try {
-      const cand = await Promise.all(top10.map(async (i) => ({ i, n: Number((await db.rpc("corroboration_count", { t: i.title, src: i.source_id })).data ?? 0) })));
-      const r = await curate(cand.map(({ i, n }) => ({ title: i.title, summary: i.summary ?? "", source: i.sources.name, others: n })));
-      await log("info", "curate", `বাছাই (${cats[0]}): ${top10[r.index].title.slice(0, 90)} — ${r.reason}`);
-      return top10[r.index];
-    } catch (e) { await log("warn", "curate", `AI বাছাই ব্যর্থ, সাধারণ নিয়মে: ${(e as Error).message.slice(0, 160)}`); }
+  for (const cat of cats) {
+    const pool = ok.filter((i) => i.sources.category === cat);
+    pool.sort((a, b) => b.sources.trust_level - a.sources.trust_level || +new Date(b.published_at ?? 0) - +new Date(a.published_at ?? 0));
+    const top10 = pool.slice(0, 10);
+    if (top10.length > 1 && hasAI()) {
+      try {
+        const cand = await Promise.all(top10.map(async (i) => ({ i, n: Number((await db.rpc("corroboration_count", { t: i.title, src: i.source_id })).data ?? 0) })));
+        const r = await curate(cand.map(({ i, n }) => ({ title: i.title, summary: i.summary ?? "", source: i.sources.name, others: n })), CATS[cat] ?? cat);
+        if (r.index >= 0) {
+          await log("info", "curate", `বাছাই (${cat}): ${top10[r.index].title.slice(0, 90)} — ${r.reason}`);
+          return top10[r.index];
+        }
+        await log("info", "curate", `${cat}: উপযুক্ত খবর নেই (${r.reason.slice(0, 120)}), পরের বিভাগে`);
+        continue;
+      } catch (e) { await log("warn", "curate", `AI বাছাই ব্যর্থ, সাধারণ নিয়মে: ${(e as Error).message.slice(0, 160)}`); }
+    }
+    const top = top10.slice(0, 3);
+    return top[Math.floor(Math.random() * top.length)];
   }
-  const top = pool.slice(0, 3);                       // ফলব্যাক: একই সূত্র বারবার না আসতে সামান্য এলোমেলো
-  return top[Math.floor(Math.random() * top.length)];
+  return null;
 }
 
 // স্বয়ংক্রিয় অনুমোদনের শর্ত: ultra = সব খবর (রাজনীতি/অপরাধ/স্বাস্থ্যসহ), auto = নির্ভরযোগ্য ও অসংবেদনশীল, manual = কখনো নয়
@@ -111,36 +119,46 @@ function isEligible(s: Settings, sensitive: boolean, score: number) {
 }
 
 async function writeOne(s: Settings) {
-  const since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const { data: items } = await db.from("raw_items").select("*, sources(name, category, trust_level)").eq("status", "new").gte("created_at", since).limit(200);
-  const ok = (items ?? []).filter((i: any) => i.sources && s.categories[i.sources.category]);
-  const pick: any = ok.length ? await pickCandidate(ok) : null;
-  if (!pick) return log("info", "write", "লেখার মতো নতুন আইটেম নেই");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const since = new Date(Date.now() - 3 * 864e5).toISOString();
+    const { data: items } = await db.from("raw_items").select("*, sources(name, category, trust_level)").eq("status", "new").gte("created_at", since).limit(300);
+    const ok = (items ?? []).filter((i: any) => i.sources && s.categories[i.sources.category]);
+    const pick: any = ok.length ? await pickCandidate(ok) : null;
+    if (!pick) return log("info", "write", "লেখার মতো নতুন আইটেম নেই");
 
-  try {
-    const g = await generate(pick.title, pick.summary ?? "", pick.sources.name, pick.url);
-    const { data: corro } = await db.rpc("corroboration_count", { t: pick.title, src: pick.source_id });
-    const score = Math.min(100, pick.sources.trust_level * 15 + Math.min(corro ?? 0, 2) * 15);
-    const sensitive = SENSITIVE.test(`${pick.title} ${pick.summary ?? ""}`);
-    const status = s.approval_mode === "auto" && !sensitive && score >= 75 ? "approved" : "draft";
+    try {
+      const g = await generate(pick.title, pick.summary ?? "", pick.sources.name, pick.url);
+      // আসল বিষয় অনুযায়ী ক্যাটাগরি (সূত্রের ক্যাটাগরি নয়); খেলা/বিনোদন ইত্যাদি বাদ
+      const category = g.category ?? pick.sources.category;
+      if (category === "skip" || !s.categories[category]) {
+        await db.from("raw_items").update({ status: "rejected" }).eq("id", pick.id);
+        await log("info", "write", `বাদ (${category}): ${pick.title.slice(0, 90)}`);
+        continue;
+      }
+      const { data: corro } = await db.rpc("corroboration_count", { t: pick.title, src: pick.source_id });
+      const score = Math.min(100, pick.sources.trust_level * 15 + Math.min(corro ?? 0, 2) * 15);
+      const sensitive = SENSITIVE.test(`${pick.title} ${pick.summary ?? ""}`);
 
-    const { data: art, error } = await db.from("articles").insert({
-      slug: slugify(g.title_en), category: pick.sources.category,
-      title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
-      social_caption: g.social_caption_bn ?? null, image_prompt: g.image_prompt ?? null, source_image_url: pick.image_url ?? null,
-      source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status: "draft",
-    }).select().single();
-    if (error) throw new Error(error.message);
-    await db.from("raw_items").update({ status: "used" }).eq("id", pick.id);
+      const { data: art, error } = await db.from("articles").insert({
+        slug: slugify(g.title_en), category,
+        title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
+        social_caption: g.social_caption_bn ?? null, hashtags: g.hashtags_en ?? null, image_prompt: g.image_prompt ?? null, source_image_url: pick.image_url ?? null,
+        source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status: "draft",
+      }).select().single();
+      if (error) throw new Error(error.message);
+      await db.from("raw_items").update({ status: "used" }).eq("id", pick.id);
 
-    // ছবি আগে। ছবি না হলে লেখা draft-ই থাকে, পরের রানগুলোতে আবার চেষ্টা হয়; ছবি ছাড়া কিছু প্রকাশ বা পোস্ট হয় না
-    const hasImg = await buildBanner(db, art, s.source_images);
-    const eligible = isEligible(s, sensitive, score);
-    if (hasImg && eligible) await db.from("articles").update({ status: "approved" }).eq("id", art.id);
-    await log("info", "write", `লেখা তৈরি (${hasImg ? (eligible ? `approved/${s.approval_mode}` : "draft, ছবিসহ") : "draft, ছবি নেই"}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}, ${pick.sources.category}): ${g.title_en}`);
-  } catch (e) {
-    await log("error", "write", (e as Error).message, { raw_item: pick.id });
-    await alertAdmin(`❌ নীহারিকা: লেখা ব্যর্থ\n${(e as Error).message}`);
+      // ছবি আগে। ছবি না হলে লেখা draft-ই থাকে, পরের রানগুলোতে আবার চেষ্টা হয়; ছবি ছাড়া কিছু প্রকাশ বা পোস্ট হয় না
+      const hasImg = await buildBanner(db, art, s.source_images);
+      const eligible = isEligible(s, sensitive, score);
+      if (hasImg && eligible) await db.from("articles").update({ status: "approved" }).eq("id", art.id);
+      await log("info", "write", `লেখা তৈরি (${hasImg ? (eligible ? `approved/${s.approval_mode}` : "draft, ছবিসহ") : "draft, ছবি নেই"}, স্কোর ${score}${sensitive ? ", সংবেদনশীল" : ""}, ${category}): ${g.title_en}`);
+      return;
+    } catch (e) {
+      await log("error", "write", (e as Error).message, { raw_item: pick.id });
+      await alertAdmin(`❌ নীহারিকা: লেখা ব্যর্থ\n${(e as Error).message}`);
+      return;
+    }
   }
 }
 

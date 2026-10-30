@@ -2,6 +2,10 @@
 import sharp from "sharp";
 
 const OPEN: Record<string, string> = { "nasa.gov": "NASA", "esa.int": "ESA", "noaa.gov": "NOAA", "eso.org": "ESO", "nih.gov": "NIH" };
+// এই সাইটগুলোর og:image আসলে নিজেদের লোগো-বসানো "সোশ্যাল কার্ড" (ছবির ওপর বড় নাম/লোগো) — এগুলো ব্যবহার করা হয় না; শুধু RSS-এর খাঁটি ছবি চলবে
+const BRANDED = ["prothomalo.com", "thedailystar.net", "dhakatribune.com", "bdnews24.com", "jugantor.com", "kalerkantho.com", "samakal.com", "dhakapost.com", "banglatribune.com", "somoynews.tv", "jagonews24.com"];
+const isBranded = (host: string) => host.endsWith(".bd") || BRANDED.some((d) => host === d || host.endsWith("." + d));
+
 const STYLE = ", editorial photo-illustration, cinematic lighting, rich detail, vertical composition, no text, no letters, no logos, no watermark";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 NiiharikaBot/1.0";
 
@@ -46,7 +50,7 @@ async function sourcePhoto(a: ImgInput, mode: "open" | "all"): Promise<Bg> {
 
   const candidates: string[] = [];
   if (a.source_image_url) candidates.push(a.source_image_url);
-  const page = await getBuf(link.url, 15000);
+  const page = isBranded(host) ? null : await getBuf(link.url, 15000);
   if (page) { const u = pageImage(page.buf.toString("utf8"), link.url); if (u && !candidates.includes(u)) candidates.push(u); }
   for (const u of candidates) {
     const img = await getBuf(u);

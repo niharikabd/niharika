@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Share } from "./icons";
 
 // একটিমাত্র Share বাটন: মোবাইলে নেটিভ শেয়ার শিট (সব অ্যাপ), না থাকলে তালিকা
-export default function ShareButton({ url, title }: { url: string; title: string }) {
+export default function ShareButton({ url, title, lang = "bn" }: { url: string; title: string; lang?: "bn" | "en" }) {
+  const en = lang === "en";
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const u = encodeURIComponent(url), t = encodeURIComponent(title);
@@ -25,11 +26,11 @@ export default function ShareButton({ url, title }: { url: string; title: string
   ];
   return (
     <div className="sharewrap">
-      <button type="button" className="btn sharebtn" onClick={onClick} aria-expanded={open}><Share /> শেয়ার করুন</button>
+      <button type="button" className="btn sharebtn" onClick={onClick} aria-expanded={open}><Share /> {en ? "Share" : "শেয়ার করুন"}</button>
       {open && (
         <div className="sharemenu" role="menu">
           {links.map(([n, h]) => <a key={n} href={h} target="_blank" rel="noopener noreferrer" role="menuitem">{n}</a>)}
-          <button type="button" onClick={copy} role="menuitem">{copied ? "কপি হয়েছে ✓" : "লিংক কপি"}</button>
+          <button type="button" onClick={copy} role="menuitem">{copied ? (en ? "Copied ✓" : "কপি হয়েছে ✓") : en ? "Copy link" : "লিংক কপি"}</button>
         </div>
       )}
     </div>

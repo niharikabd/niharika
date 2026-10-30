@@ -18,6 +18,11 @@ export function middleware(req: NextRequest) {
   if (p === "/zz-admin" || p.startsWith("/zz-admin/")) {
     return new NextResponse("Not found", { status: 404, headers: { "X-Robots-Tag": NOINDEX } });
   }
+  // ভাষার পছন্দ মনে রাখা: English বেছে থাকলে বাংলা হোমে এলে /en-এ নেয়
+  if (p === "/" && req.cookies.get("nh_lang")?.value === "en") {
+    const url = req.nextUrl.clone(); url.pathname = "/en";
+    return NextResponse.redirect(url);
+  }
   return NextResponse.next();
 }
 

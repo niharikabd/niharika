@@ -1,7 +1,7 @@
 // Gemini (প্রধান, একাধিক মডেল ফলব্যাক) → Groq (ফলব্যাক)
 export type Generated = {
   title_bn: string; title_en: string; body_bn: string; body_en: string; excerpt_bn: string;
-  social_caption_bn?: string; image_prompt?: string;
+  social_caption_bn?: string; image_prompt?: string; category?: string; hashtags_en?: string;
 };
 
 const PROMPT = (title: string, summary: string, source: string, url: string) => `তুমি "নীহারিকা" নিউজ পোর্টালের সম্পাদক। বিজ্ঞান ও প্রযুক্তির খবর গল্পের মতো আকর্ষণীয় করে লেখো, যাতে পাঠক শেষ পর্যন্ত পড়তে চায়।
@@ -15,7 +15,9 @@ const PROMPT = (title: string, summary: string, source: string, url: string) => 
 - title_bn: কৌতূহল জাগানো, সর্বোচ্চ ৭০ অক্ষর, সহজ বাংলা।
 - body_bn: ১৫০–২২০ শব্দ, ৩টি ছোট অনুচ্ছেদ (অনুচ্ছেদের মাঝে একটি ফাঁকা লাইন)। (১) প্রথম বাক্যেই চমক বা প্রশ্ন, (২) কী ঘটেছে, (৩) কেন গুরুত্বপূর্ণ বা আমাদের জন্য এর মানে কী।
 - excerpt_bn: ১-২ বাক্যের টানটান সারকথা।
-- social_caption_bn: Facebook/Instagram ক্যাপশন, ৪–৬ লাইন। প্রথম লাইনে হুক, মাঝে ২–৩ লাইনে সারকথা, শেষে পাঠকের প্রতি একটি প্রশ্ন। ২–৩টি মানানসই ইমোজি, সবশেষ লাইনে ৩–৪টি হ্যাশট্যাগ (#নীহারিকা সহ)। লিংক বা সূত্রের নাম দেবে না।
+- social_caption_bn: Facebook/Instagram/Telegram ক্যাপশন, ৪–৬ লাইন। প্রথম লাইনে হুক, মাঝে ২–৩ লাইনে সারকথা, শেষে পাঠকের প্রতি একটি প্রশ্ন। ২–৩টি মানানসই ইমোজি। **হ্যাশট্যাগ, লিংক বা সূত্রের নাম এতে দেবে না।**
+- hashtags_en: ৪–৬টি হ্যাশট্যাগ, **শুধু ইংরেজি অক্ষরে** (বাংলা হ্যাশট্যাগ নয়), প্রতিটি # দিয়ে শুরু, স্পেস দিয়ে আলাদা, একটি অবশ্যই #Niiharika। যেমন: "#Science #Space #NASA #Niiharika"।
+- category: খবরের আসল বিষয় অনুযায়ী ঠিক একটি: "science" (বিজ্ঞান, মহাকাশ, গবেষণা, পরিবেশ-জলবায়ু গবেষণা), "tech" (প্রযুক্তি, AI, ইন্টারনেট, গ্যাজেট), "bangladesh" (**শুধু** যখন খবরটি আসলেই বাংলাদেশ নিয়ে: বাংলাদেশের ঘটনা, সরকার, অর্থনীতি, নাগরিক; বাংলাদেশি পত্রিকা ছাপলেও বিদেশের ঘটনা হলে "world"), "world" (আন্তর্জাতিক খবর), অথবা "skip" (খেলাধুলা, বিনোদন, সেলিব্রিটি/গসিপ, জীবনযাপন-টিপস, বিজ্ঞাপন/ডিল/রিভিউ, ব্যক্তিগত মতামত লেখা)।
 - image_prompt: ইংরেজিতে ১–২ বাক্যে ছবির দৃশ্যের বর্ণনা। কোনো লেখা, অক্ষর, লোগো বা নির্দিষ্ট বাস্তব মানুষের মুখ থাকবে না। বিষয়-নির্দিষ্ট, সুন্দর, সিনেমাটিক।
 
 সূত্র: ${source}
@@ -24,13 +26,20 @@ const PROMPT = (title: string, summary: string, source: string, url: string) => 
 সংক্ষেপ: ${summary}
 
 শুধু এই JSON ফরম্যাটে উত্তর দাও (অন্য কিছু নয়):
-{"title_bn":"...","title_en":"...","body_bn":"...","body_en":"80-120 word engaging English summary","excerpt_bn":"...","social_caption_bn":"...","image_prompt":"..."}`;
+{"title_bn":"...","title_en":"...","body_bn":"...","body_en":"80-120 word engaging English summary","excerpt_bn":"...","social_caption_bn":"...","hashtags_en":"#Science #Niiharika","image_prompt":"...","category":"science"}`;
 
 function parse(text: string): Generated {
   const j = JSON.parse(text.replace(/```json|```/g, "").trim());
   for (const k of ["title_bn", "title_en", "body_bn", "body_en", "excerpt_bn"]) {
     if (typeof j[k] !== "string" || !j[k].trim()) throw new Error(`missing field ${k}`);
   }
+  // হ্যাশট্যাগ: শুধু ইংরেজি/সংখ্যা/আন্ডারস্কোর, সর্বোচ্চ ৬টি, #Niiharika অবশ্যই
+  const tags = String(j.hashtags_en ?? "").match(/#[A-Za-z][A-Za-z0-9_]{1,30}/g) ?? [];
+  const uniq = [...new Set(tags.map((t) => t))].slice(0, 6);
+  if (!uniq.some((t) => t.toLowerCase() === "#niiharika")) uniq.push("#Niiharika");
+  j.hashtags_en = uniq.join(" ");
+  if (j.social_caption_bn) j.social_caption_bn = String(j.social_caption_bn).replace(/#[^\s#]+/g, "").replace(/[ \t]+\n/g, "\n").trim();
+  j.category = ["science", "tech", "bangladesh", "world", "skip"].includes(j.category) ? j.category : undefined;
   return j;
 }
 
@@ -117,23 +126,27 @@ export async function generate(title: string, summary: string, source: string, u
 
 // সম্পাদকীয় বাছাই: কোনটি সবচেয়ে গুরুত্বপূর্ণ ও পাঠকের কাজের খবর
 export type Candidate = { title: string; summary: string; source: string; others: number };
-export async function curate(items: Candidate[]): Promise<{ index: number; reason: string }> {
+export async function curate(items: Candidate[], categoryLabel: string): Promise<{ index: number; reason: string }> {
   const list = items.map((it, i) => `${i}. [${it.source}${it.others ? `; আরও ${it.others}টি ভিন্ন সূত্রেও এসেছে` : ""}] ${it.title} — ${it.summary.replace(/\s+/g, " ").slice(0, 220)}`).join("\n");
-  const prompt = `তুমি "নীহারিকা" বিজ্ঞান ও প্রযুক্তি নিউজ পোর্টালের সম্পাদক। নিচের খবরগুলো থেকে এখন প্রকাশের জন্য সবচেয়ে ভালো একটি বাছো।
+  const prompt = `তুমি "নীহারিকা" বিজ্ঞান ও প্রযুক্তি নিউজ পোর্টালের সম্পাদক। নিচের খবরগুলো "${categoryLabel}" বিভাগের জন্য। এখন প্রকাশের জন্য সবচেয়ে ভালো একটি বাছো।
+
+বাধ্যতামূলক শর্ত:
+- খবরটি আসলেই "${categoryLabel}" বিভাগের হতে হবে। "বাংলাদেশ" বিভাগে শুধু যে খবর সত্যিই বাংলাদেশ নিয়ে (দেশের ঘটনা, সরকার, অর্থনীতি, নাগরিক); বাংলাদেশি পত্রিকায় ছাপা বিদেশের ঘটনা বাদ।
+- খেলাধুলা, বিনোদন, সেলিব্রিটি, গসিপ, বিজ্ঞাপন/ডিল/রিভিউ, ব্যক্তিগত মতামত, জীবনযাপন-টিপস সবসময় বাদ।
 
 বাছাইয়ের মাপকাঠি (গুরুত্ব অনুযায়ী):
-১) গুরুত্ব ও নতুনত্ব: বড় আবিষ্কার, নীতি/প্রযুক্তিতে বড় পরিবর্তন, অনেক মানুষের উপর প্রভাব।
-২) পাঠকের আগ্রহ: বাংলাভাষী পাঠক (বিশেষত বাংলাদেশের) জানতে চাইবে এমন, কৌতূহলজাগানো।
+১) গুরুত্ব ও নতুনত্ব: বড় আবিষ্কার/ঘটনা, নীতি বা প্রযুক্তিতে বড় পরিবর্তন, অনেক মানুষের উপর প্রভাব।
+২) পাঠকের আগ্রহ: বাংলাভাষী পাঠক জানতে চাইবে এমন।
 ৩) নির্ভরযোগ্যতা: একাধিক সূত্রে এলে বেশি গুরুত্ব দাও।
-এড়াবে: বিজ্ঞাপন/ডিল/রিভিউ/কেনাকাটার পরামর্শ, গসিপ, ব্যক্তিগত মতামত লেখা, ছোটখাটো ঘোষণা, পুরনো বা পুনরাবৃত্ত খবর।
+৪) ছোটখাটো ঘোষণা, পুরনো বা পুনরাবৃত্ত খবর এড়াও।
 
 খবরের তালিকা:
 ${list}
 
-শুধু JSON দাও: {"index": <সংখ্যা>, "reason": "এক বাক্যে কারণ"}`;
+যদি কোনোটিই শর্ত মেনে উপযুক্ত না হয় তবে index দাও -1। শুধু JSON দাও: {"index": <সংখ্যা বা -1>, "reason": "এক বাক্যে কারণ"}`;
   return llm(prompt, 0.2, (t) => {
     const j = JSON.parse(t.replace(/```json|```/g, "").trim());
-    if (!Number.isInteger(j.index) || j.index < 0 || j.index >= items.length) throw new Error("bad index");
+    if (!Number.isInteger(j.index) || j.index < -1 || j.index >= items.length) throw new Error("bad index");
     return { index: j.index, reason: String(j.reason ?? "") };
   }, "curate");
 }
