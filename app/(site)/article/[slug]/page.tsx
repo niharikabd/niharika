@@ -30,7 +30,7 @@ export default async function Article({ params }: P) {
   const words = (a.body_bn ?? "").split(/\s+/).length;
   const ld = [
     {
-      "@context": "https://schema.org", "@type": "NewsArticle",
+      "@context": "https://schema.org", "@type": a.kind && a.kind !== "news" ? "Article" : "NewsArticle",
       headline: a.title_bn || a.title_en, description: a.excerpt,
       datePublished: a.published_at, dateModified: a.updated_at,
       image: a.banner_url ? [a.banner_url] : undefined, inLanguage: "bn", articleSection: CATS[a.category], wordCount: words,
@@ -56,8 +56,7 @@ export default async function Article({ params }: P) {
       <p className="meta">🤖 AI-সহায়তায় তৈরি · {bn(a.published_at)} · {Math.max(1, Math.round(words / 150))} মিনিটের পাঠ</p>
       {a.banner_url && <img className="hero" src={a.banner_url} alt={a.title_bn || ""} />}
       <div style={{ whiteSpace: "pre-wrap" }}>{a.body_bn}</div>
-      <h3>মূল সূত্র</h3>
-      <ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul>
+      {!!links.length && <><h3>মূল সূত্র</h3><ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul></>}
       <ShareButton url={`${SITE}/article/${a.slug}`} title={a.title_bn || a.title_en} />
       {!!rel.length && <><h3>আরও পড়ুন</h3>{rel.map((r) => <Card key={r.slug} a={r} />)}</>}
     </article>

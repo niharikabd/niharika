@@ -10,8 +10,11 @@ export default function ShareButton({ url, title, lang = "bn" }: { url: string; 
   const u = encodeURIComponent(url), t = encodeURIComponent(title);
 
   async function onClick() {
+    // ফোনে নেটিভ শেয়ার শিট (নিচ থেকে ওঠা পপ-আপ) থাকলে শুধু সেটাই; আমাদের নিজস্ব মেনু শুধু ডেস্কটপে
     if (typeof navigator !== "undefined" && (navigator as any).share) {
-      try { await (navigator as any).share({ title, url }); return; } catch { /* বাতিল */ }
+      try { await (navigator as any).share({ title, url }); }
+      catch (e: any) { if (e?.name !== "AbortError") setOpen(true); }   // ব্যবহারকারী বাতিল করলে কিছুই নয়
+      return;
     }
     setOpen((o) => !o);
   }

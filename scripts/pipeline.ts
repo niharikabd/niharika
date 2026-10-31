@@ -4,7 +4,7 @@ import Parser from "rss-parser";
 import { adminClient } from "../lib/supabase";
 import { getSettings, type Settings } from "../lib/settings";
 import { log } from "../lib/log";
-import { generate, hasAI, curate } from "./ai";
+import { generate, hasAI, curate, generateEvergreen, EVERGREEN_KINDS, EVERGREEN_AREAS } from "./ai";
 import { alertAdmin } from "./telegram";
 import { publishAll } from "./publish";
 import { buildBanner } from "./banner-flow";
@@ -65,7 +65,7 @@ async function remainingQuota(perDay: number) {
   const hoursElapsed = bdt.getUTCHours() + 1;
   bdt.setUTCHours(0, 0, 0, 0);
   const dayStart = new Date(bdt.getTime() - BDT).toISOString();
-  const { count } = await db.from("articles").select("id", { count: "exact", head: true }).gte("created_at", dayStart).neq("status", "rejected");
+  const { count } = await db.from("articles").select("id", { count: "exact", head: true }).eq("kind", "news").gte("created_at", dayStart).neq("status", "rejected");
   const target = Math.ceil((perDay * hoursElapsed) / 24);
   return Math.min(Math.max(target - (count ?? 0), 0), 3);
 }
@@ -84,7 +84,7 @@ function dayStartISO() {
 // আজ কোন ক্যাটাগরির কয়টি লেখা হয়েছে দেখে সবচেয়ে "পিছিয়ে" থাকা ক্যাটাগরি থেকে খবর বাছা।
 // AI সম্পাদক বিভাগের শর্ত (যেমন "বাংলাদেশ" মানে সত্যিই বাংলাদেশের খবর, খেলা/বিনোদন বাদ) মিলিয়ে বাছে; কোনোটি উপযুক্ত না হলে পরের বিভাগে যায়।
 async function pickCandidate(ok: any[]) {
-  const { data: today } = await db.from("articles").select("category").gte("created_at", dayStartISO()).neq("status", "rejected");
+  const { data: today } = await db.from("articles").select("category").eq("kind", "news").gte("created_at", dayStartISO()).neq("status", "rejected");
   const counts: Record<string, number> = {};
   for (const r of today ?? []) counts[r.category] = (counts[r.category] ?? 0) + 1;
   const total = (today ?? []).length;
@@ -162,6 +162,52 @@ async function writeOne(s: Settings) {
   }
 }
 
+
+// ---- শিক্ষামূলক (খবর নয়) পোস্ট: ভালো অভ্যাস, মজার তথ্য, ভুল ধারণা, ব্যাখ্যা ----
+// auto মোডে শুধু তথ্য/ব্যাখ্যা স্বয়ংক্রিয়, স্বাস্থ্য-ঘেঁষা অভ্যাস/ভুল-ধারণা আপনার অনুমোদনে; ultra-তে সব স্বয়ংক্রিয়
+function isEligibleEvergreen(s: Settings, kind: string) {
+  if (s.approval_mode === "ultra") return true;
+  return s.approval_mode === "auto" && (kind === "fact" || kind === "explainer");
+}
+
+// সকাল ৮টা–রাত ১০টার মধ্যে দিনে n টি, সমান ব্যবধানে
+async function evergreenDue(n: number) {
+  if (n <= 0) return false;
+  const hour = new Date(Date.now() + BDT).getUTCHours();
+  const allowed = Math.ceil(n * Math.min(1, Math.max(0, (hour - 7) / 14)));
+  const { count } = await db.from("articles").select("id", { count: "exact", head: true }).neq("kind", "news").neq("status", "rejected").gte("created_at", dayStartISO());
+  return (count ?? 0) < allowed;
+}
+
+async function writeEvergreen(s: Settings) {
+  try {
+    const { data: past } = await db.from("articles").select("kind,title_en").neq("kind", "news").neq("status", "rejected").order("created_at", { ascending: false }).limit(60);
+    const recent = (past ?? []).slice(0, 16);
+    const used: Record<string, number> = Object.fromEntries(EVERGREEN_KINDS.map((k) => [k, 0]));
+    for (const r of recent) if (r.kind in used) used[r.kind]++;
+    const least = Math.min(...Object.values(used));
+    const pool = EVERGREEN_KINDS.filter((k) => used[k] === least);
+    const kind = pool[Math.floor(Math.random() * pool.length)];
+    const areas = EVERGREEN_AREAS[kind];
+    const area = areas[Math.floor(Math.random() * areas.length)];
+
+    const g = await generateEvergreen(kind, area, (past ?? []).map((r: any) => r.title_en).filter(Boolean));
+    const { data: art, error } = await db.from("articles").insert({
+      slug: slugify(g.title_en), category: "science", kind,
+      title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
+      social_caption: g.social_caption_bn ?? null, hashtags: g.hashtags_en ?? null, image_prompt: g.image_prompt ?? null, banner_highlight: g.banner_highlight || null,
+      source_links: [], verification_score: null, status: "draft",
+    }).select().single();
+    if (error) throw new Error(error.message);
+    const hasImg = await buildBanner(db, art, s.source_images);
+    const eligible = isEligibleEvergreen(s, kind);
+    if (hasImg && eligible) await db.from("articles").update({ status: "approved" }).eq("id", art.id);
+    await log("info", "evergreen", `শিক্ষামূলক পোস্ট (${kind}, ${area}; ${hasImg ? (eligible ? "approved" : "draft, ছবিসহ") : "draft, ছবি নেই"}): ${g.title_en}`);
+  } catch (e) {
+    await log("error", "evergreen", (e as Error).message.slice(0, 300));
+  }
+}
+
 // ছবি তৈরি হয়নি এমন লেখাগুলোতে আবার চেষ্টা (সর্বোচ্চ ৩ দিন পুরনো)
 async function retryImages(s: Settings) {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
@@ -169,7 +215,8 @@ async function retryImages(s: Settings) {
   for (const a of data ?? []) {
     const ok = await buildBanner(db, a, s.source_images);
     const sensitive = SENSITIVE.test(`${a.title_en ?? ""} ${a.title_bn ?? ""} ${a.excerpt ?? ""}`);
-    if (ok && a.status === "draft" && isEligible(s, sensitive, a.verification_score ?? 0)) {
+    const eligible = a.kind && a.kind !== "news" ? isEligibleEvergreen(s, a.kind) : isEligible(s, sensitive, a.verification_score ?? 0);
+    if (ok && a.status === "draft" && eligible) {
       await db.from("articles").update({ status: "approved" }).eq("id", a.id);
     }
   }
@@ -185,6 +232,7 @@ async function main() {
     const n = await remainingQuota(s.posts_per_day);
     await log("info", "quota", `প্রতিদিন ${s.posts_per_day}টি, এই রানে লেখা হবে ${n}টি, মোড: ${s.approval_mode}`);
     for (let i = 0; i < n; i++) await writeOne(s);
+    if (await evergreenDue(s.evergreen_per_day)) await writeEvergreen(s);   // খবরের কোটা থেকে আলাদা; খবর বন্ধ হয় না
   }
   await retryImages(s);
 

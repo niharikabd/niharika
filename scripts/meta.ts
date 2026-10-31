@@ -3,6 +3,7 @@
 import { log } from "../lib/log";
 import { fullNews, linksComment, shortCaption, withTags } from "./social-text";
 
+const MORE = "\n\n👇 বিস্তারিত পড়ুন কমেন্টে";   // short স্টাইলে পোস্টের শেষে
 const V = () => process.env.GRAPH_VERSION || "v26.0";
 
 async function graph(path: string, params: Record<string, string>, method: "POST" | "GET" = "POST") {
@@ -32,7 +33,7 @@ async function comments(platform: "facebook" | "instagram", objectId: string, te
 
 export async function postFacebook(a: any, style: "full" | "short"): Promise<string> {
   if (!a.banner_url) throw new Error("ছবি নেই");
-  const caption = style === "full" ? withTags(fullNews(a), a, 60000) : withTags(shortCaption(a), a, 60000);
+  const caption = style === "full" ? withTags(fullNews(a), a, 60000) : withTags(shortCaption(a) + MORE, a, 60000);
   const j = await graph(`${process.env.FB_PAGE_ID}/photos`, { url: a.banner_url, caption, published: "true" });
   const postId = j.post_id ?? j.id;
   await comments("facebook", postId, style === "full" ? [linksComment(a)] : [fullNews(a), linksComment(a)], a);
@@ -42,7 +43,7 @@ export async function postFacebook(a: any, style: "full" | "short"): Promise<str
 export async function postInstagram(a: any, style: "full" | "short"): Promise<string> {
   if (!a.banner_url) throw new Error("ছবি নেই");
   const ig = process.env.IG_USER_ID!;
-  const caption = style === "full" ? withTags(fullNews(a), a, 2200) : withTags(shortCaption(a), a, 2200);
+  const caption = style === "full" ? withTags(fullNews(a), a, 2200) : withTags(shortCaption(a) + MORE, a, 2200);
   const c = await graph(`${ig}/media`, { image_url: a.banner_url, caption });
   for (let i = 0; i < 6; i++) {
     const st = await graph(c.id, { fields: "status_code" }, "GET");

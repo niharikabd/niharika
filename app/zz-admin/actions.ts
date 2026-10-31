@@ -115,6 +115,7 @@ export async function saveSettingsAction(fd: FormData) {
     categories: Object.fromEntries(CATEGORIES.map((c) => [c, fd.get(`c_${c}`) === "on"])),
     source_images: s(fd, "source_images") === "open" ? "open" : "all",
     social_style: s(fd, "social_style") === "full" ? "full" : "short",
+    evergreen_per_day: Math.min(6, Math.max(0, parseInt(s(fd, "evergreen_per_day")) || 0)),
   });
   redirect(A("/settings?ok=1"));
 }

@@ -15,3 +15,7 @@ export const SOCIAL = {
   instagram: "https://www.instagram.com/niiharika.bd",
   telegram: "https://t.me/niiharikatelegram",
 };
+
+// স্থায়ী-মানের (খবর নয়) পোস্টের ধরন
+export const KIND_BN: Record<string, string> = { tip: "ভালো অভ্যাস", fact: "জানেন কি?", myth: "ভুল ধারণা", explainer: "বিজ্ঞান-প্রযুক্তি" };
+export const KIND_EN: Record<string, string> = { tip: "Healthy habit", fact: "Did you know?", myth: "Myth vs fact", explainer: "Explainer" };

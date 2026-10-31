@@ -1,12 +1,13 @@
 // ব্যানারের ছবি: (১) সূত্রের নিজস্ব ছবি → (২) AI "Concept Image" → না পেলে null (ছবি ছাড়া কিছু প্রকাশ হয় না)
 import sharp from "sharp";
+import { imageBreaksRules } from "./ai";
 
 const OPEN: Record<string, string> = { "nasa.gov": "NASA", "esa.int": "ESA", "noaa.gov": "NOAA", "eso.org": "ESO", "nih.gov": "NIH" };
 // এই সাইটগুলোর og:image আসলে নিজেদের লোগো-বসানো "সোশ্যাল কার্ড" (ছবির ওপর বড় নাম/লোগো) — এগুলো ব্যবহার করা হয় না; শুধু RSS-এর খাঁটি ছবি চলবে
 const BRANDED = ["prothomalo.com", "thedailystar.net", "dhakatribune.com", "bdnews24.com", "jugantor.com", "kalerkantho.com", "samakal.com", "dhakapost.com", "banglatribune.com", "somoynews.tv", "jagonews24.com"];
 const isBranded = (host: string) => host.endsWith(".bd") || BRANDED.some((d) => host === d || host.endsWith("." + d));
 
-const STYLE = ", editorial photo-illustration, cinematic lighting, rich detail, vertical composition, no text, no letters, no logos, no watermark";
+const STYLE = ", editorial photo-illustration, cinematic lighting, rich detail, vertical composition, no text, no letters, no logos, no watermark, no animals, no people, no human faces, no eyes, no mouth, faceless";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 NiiharikaBot/1.0";
 
 export type Bg = { buf: Buffer; credit: string } | null;
@@ -85,9 +86,11 @@ export async function getBackground(a: ImgInput, mode: "open" | "all" = "all"): 
   const base = (a.image_prompt || a.title_en || "").trim();
   if (!base) return null;
   const prompt = base + STYLE;
-  for (let i = 0; i < 2; i++) {                            // AI ছবি: ২ বার চেষ্টা
+  for (let i = 0; i < 3; i++) {                            // AI ছবি: সর্বোচ্চ ৩ বার; প্রাণী/মুখ থাকলে বাদ
     const buf = (await cloudflareAI(prompt)) || (await pollinations(prompt));
-    if (buf) return { buf, credit: "Concept Image | নীহারিকা" };
+    if (!buf) continue;
+    if ((await imageBreaksRules(buf)) === true) continue;
+    return { buf, credit: "Concept Image | নীহারিকা" };
   }
   return null;
 }

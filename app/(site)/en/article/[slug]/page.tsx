@@ -24,7 +24,7 @@ export default async function EnArticle({ params }: P) {
   if (!a?.title_en) notFound();
   const links: { name: string; url: string }[] = a.source_links ?? [];
   const rel = (await related(a.category, a.slug)).filter((r) => r.title_en);
-  const ld = { "@context": "https://schema.org", "@type": "NewsArticle", headline: a.title_en, datePublished: a.published_at, dateModified: a.updated_at, inLanguage: "en", image: a.banner_url ? [a.banner_url] : undefined, mainEntityOfPage: `${SITE}/en/article/${a.slug}`, author: { "@type": "Organization", name: "Niiharika Editorial" }, publisher: { "@type": "Organization", name: "Niiharika" } };
+  const ld = { "@context": "https://schema.org", "@type": a.kind && a.kind !== "news" ? "Article" : "NewsArticle", headline: a.title_en, datePublished: a.published_at, dateModified: a.updated_at, inLanguage: "en", image: a.banner_url ? [a.banner_url] : undefined, mainEntityOfPage: `${SITE}/en/article/${a.slug}`, author: { "@type": "Organization", name: "Niiharika Editorial" }, publisher: { "@type": "Organization", name: "Niiharika" } };
   return (
     <article lang="en">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
@@ -33,8 +33,7 @@ export default async function EnArticle({ params }: P) {
       <p className="meta">🤖 AI-assisted · {new Date(a.published_at).toLocaleString("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" })}</p>
       {a.banner_url && <img className="hero" src={a.banner_url} alt={a.title_en || ""} />}
       <div style={{ whiteSpace: "pre-wrap" }}>{a.body_en}</div>
-      <h3>Source</h3>
-      <ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul>
+      {!!links.length && <><h3>Source</h3><ul>{links.map((l) => <li key={l.url}><a href={l.url} rel="noopener nofollow" target="_blank">{l.name}</a></li>)}</ul></>}
       <ShareButton lang="en" url={`${SITE}/en/article/${a.slug}`} title={a.title_en} />
       {!!rel.length && (<><h3>Read more</h3>{rel.map((r) => <Card key={r.slug} a={r} en />)}</>)}
     </article>
