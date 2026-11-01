@@ -1,6 +1,8 @@
 // ব্যানার ১০৮০×১৩৫০ (৪:৫): ওপরে ওয়েবসাইট (বামে) ও লোগো (ডানে), তারপর শিরোনাম ও সূত্র, নিচে ছবি।
 // sharp + pango দিয়ে (বাংলা যুক্তাক্ষর ঠিকভাবে বসে)। GitHub runner-এ fonts-noto-core লাগে।
 import sharp from "sharp";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export const W = 1080, H = 1350;
@@ -10,6 +12,12 @@ async function text(markup: string, font: string, width: number) {
 }
 
 const MARK = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><defs><radialGradient id="r" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#d7c9ff"/><stop offset=".6" stop-color="#6f7cff"/><stop offset="1" stop-color="#2b3a8c"/></radialGradient></defs><circle cx="32" cy="32" r="30" fill="url(#r)"/><path d="M32 11 L36.5 27.5 L53 32 L36.5 36.5 L32 53 L27.5 36.5 L11 32 L27.5 27.5 Z" fill="#fff"/></svg>`;
+
+// সাইটের আসল লোগো (public/logo-badge.png, সাদা গোল ব্যাজ); না পেলে আগের আঁকা চিহ্ন
+async function logoMark(size: number): Promise<Buffer> {
+  try { return await sharp(readFileSync(join(process.cwd(), "public", "logo-badge.png"))).resize(size, size).png().toBuffer(); }
+  catch { return await sharp(Buffer.from(MARK)).resize(size, size).png().toBuffer(); }
+}
 
 export type BannerInput = { title: string; categoryLabel: string; source: string; bg?: Buffer | null; credit?: string; highlight?: string | null; big?: boolean };
 
@@ -52,7 +60,7 @@ export async function makeBanner(i: BannerInput): Promise<Buffer> {
   const nameW = (await sharp(name).metadata()).width!;
   layers.push(
     { input: site, left: 50, top: 52 },
-    { input: Buffer.from(MARK), left: W - 50 - nameW - 74, top: 40 },
+    { input: await logoMark(68), left: W - 50 - nameW - 82, top: 36 },
     { input: name, left: W - 50 - nameW, top: 50 },
     { input: head, left: 60, top: 150 },
     { input: src, left: 60, top: 150 + hh + 22 },

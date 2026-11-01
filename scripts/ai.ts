@@ -1,7 +1,7 @@
 // Gemini (প্রধান, একাধিক মডেল ফলব্যাক) → Groq (ফলব্যাক)
 export type Generated = {
   title_bn: string; title_en: string; body_bn: string; body_en: string; excerpt_bn: string;
-  social_caption_bn?: string; image_prompt?: string; category?: string; hashtags_en?: string;
+  social_caption_bn?: string; image_prompt?: string; category?: string; hashtags_en?: string; countries?: string[];
 };
 
 const PROMPT = (title: string, summary: string, source: string, url: string) => `তুমি "নীহারিকা" নিউজ পোর্টালের সম্পাদক। বিজ্ঞান ও প্রযুক্তির খবর গল্পের মতো আকর্ষণীয় করে লেখো, যাতে পাঠক শেষ পর্যন্ত পড়তে চায়।
@@ -18,7 +18,8 @@ const PROMPT = (title: string, summary: string, source: string, url: string) => 
 - social_caption_bn: Facebook/Instagram/Telegram ক্যাপশন, **২–৩ লাইন, ছোট ও আকর্ষণীয়** (প্রথম লাইনে হুক, বাকিটুকুতে সারকথা)। **শেষে কোনো প্রশ্ন করবে না।** ১–২টি মানানসই ইমোজি। হ্যাশট্যাগ, লিংক বা সূত্রের নাম এতে দেবে না।
 - hashtags_en: ৪–৬টি হ্যাশট্যাগ, **শুধু ইংরেজি অক্ষরে** (বাংলা হ্যাশট্যাগ নয়), প্রতিটি # দিয়ে শুরু, স্পেস দিয়ে আলাদা, একটি অবশ্যই #Niiharika। যেমন: "#Science #Space #NASA #Niiharika"।
 - category: খবরের আসল বিষয় অনুযায়ী ঠিক একটি: "science" (বিজ্ঞান, মহাকাশ, গবেষণা, পরিবেশ-জলবায়ু গবেষণা), "tech" (প্রযুক্তি, AI, ইন্টারনেট, গ্যাজেট), "bangladesh" (**শুধু** যখন খবরটি আসলেই বাংলাদেশ নিয়ে: বাংলাদেশের ঘটনা, সরকার, অর্থনীতি, নাগরিক; বাংলাদেশি পত্রিকা ছাপলেও বিদেশের ঘটনা হলে "world"), "world" (আন্তর্জাতিক খবর), অথবা "skip" (খেলাধুলা, বিনোদন, সেলিব্রিটি/গসিপ, জীবনযাপন-টিপস, বিজ্ঞাপন/ডিল/রিভিউ, ব্যক্তিগত মতামত লেখা)।
-- image_prompt: ইংরেজিতে ১–২ বাক্যে ছবির দৃশ্যের বর্ণনা। **কঠোর নিয়ম:** কোনো প্রাণী (পশু-পাখি-মাছ-পোকা সহ) থাকবে না; কোনো মানুষের মুখ/চোখ/ঠোঁট থাকবে না। বস্তু, স্থান, প্রকৃতি-দৃশ্য, যন্ত্র, মহাকাশ, মাইক্রোস্কোপ-দৃশ্য, ছায়ামূর্তি (silhouette) বা চোখ-মুখহীন সরল কার্টুন-অবয়ব চলবে। কোনো লেখা, অক্ষর বা লোগো নয়। বিষয়-নির্দিষ্ট, সুন্দর, সিনেমাটিক।
+- image_prompt: ইংরেজিতে ১–২ বাক্যে ছবির দৃশ্যের বর্ণনা। **কঠোর নিয়ম:** কোনো প্রাণী (পশু-পাখি-মাছ-পোকা সহ) থাকবে না; কোনো মানুষের মুখ/চোখ/ঠোঁট থাকবে না। বস্তু, স্থান, প্রকৃতি-দৃশ্য, যন্ত্র, মহাকাশ, মাইক্রোস্কোপ-দৃশ্য, ছায়ামূর্তি (silhouette) বা চোখ-মুখহীন সরল কার্টুন-অবয়ব চলবে। **নিজে পতাকা, মানচিত্র বা জাতীয় প্রতীক আঁকতে বলবে না** (AI ভুল আঁকে); দেশ-সংক্রান্ত খবরে প্রতীকী দৃশ্য দাও (সেতু, আলোর পথ, স্থাপত্য, আকাশ)। কোনো লেখা, অক্ষর বা লোগো নয়। বিষয়-নির্দিষ্ট, সুন্দর, সিনেমাটিক।
+- countries: খবরটি যদি নির্দিষ্ট এক বা একাধিক দেশ নিয়ে হয় (যেমন দুই দেশের চুক্তি/সম্পর্ক, কোনো দেশের ঘটনা), **শুধু সেই দেশগুলোর** ২-অক্ষরের ISO কোড দাও (সর্বোচ্চ ৩টি), যেমন ["BD","JP"]। সিস্টেম নিজে ওই দেশগুলোর সঠিক পতাকা ছবিতে বসাবে। প্রাসঙ্গিক না হলে বা দেশ অস্পষ্ট হলে খালি তালিকা []।
 
 সূত্র: ${source}
 লিংক: ${url}
@@ -26,7 +27,7 @@ const PROMPT = (title: string, summary: string, source: string, url: string) => 
 সংক্ষেপ: ${summary}
 
 শুধু এই JSON ফরম্যাটে উত্তর দাও (অন্য কিছু নয়):
-{"title_bn":"...","title_en":"...","body_bn":"...","body_en":"80-120 word engaging English summary","excerpt_bn":"...","social_caption_bn":"...","hashtags_en":"#Science #Niiharika","image_prompt":"...","category":"science"}`;
+{"title_bn":"...","title_en":"...","body_bn":"...","body_en":"80-120 word engaging English summary","excerpt_bn":"...","social_caption_bn":"...","hashtags_en":"#Science #Niiharika","image_prompt":"...","countries":["BD","JP"],"category":"science"}`;
 
 function parse(text: string): Generated {
   const j = JSON.parse(text.replace(/```json|```/g, "").trim());
@@ -40,6 +41,7 @@ function parse(text: string): Generated {
   j.hashtags_en = uniq.join(" ");
   if (j.social_caption_bn) j.social_caption_bn = String(j.social_caption_bn).replace(/#[^\s#]+/g, "").replace(/[ \t]+\n/g, "\n").trim();
   j.category = ["science", "tech", "bangladesh", "world", "skip"].includes(j.category) ? j.category : undefined;
+  j.countries = Array.isArray(j.countries) ? [...new Set(j.countries.map((c: any) => String(c).trim().toUpperCase()).filter((c: string) => /^[A-Z]{2}$/.test(c)))].slice(0, 3) : [];
   return j;
 }
 
@@ -191,7 +193,7 @@ export async function generateEvergreen(kind: string, area: string, avoid: strin
 - social_caption_bn: **২–৩ লাইন, ছোট ও আকর্ষণীয়**, শেষে প্রশ্ন নয়, ১–২টি ইমোজি, হ্যাশট্যাগ/লিংক নয়।
 - hashtags_en: ৪–৬টি, শুধু ইংরেজি অক্ষরে, # দিয়ে শুরু, একটি অবশ্যই #Niiharika।
 - title_en, body_en (৮০–১২০ শব্দ ইংরেজি)।
-- image_prompt: ইংরেজিতে ১–২ বাক্য। **কঠোর নিয়ম:** কোনো প্রাণী (পশু-পাখি-মাছ-পোকা) নয়; কোনো মানুষের মুখ/চোখ/ঠোঁট নয়। বস্তু, প্রকৃতি-দৃশ্য, মহাকাশ, যন্ত্র, ছায়ামূর্তি বা চোখ-মুখহীন সরল কার্টুন-অবয়ব চলবে। কোনো লেখা/অক্ষর/লোগো নয়। সুন্দর, রঙিন, সিনেমাটিক।
+- image_prompt: ইংরেজিতে ১–২ বাক্য। **কঠোর নিয়ম:** কোনো প্রাণী (পশু-পাখি-মাছ-পোকা) নয়; কোনো মানুষের মুখ/চোখ/ঠোঁট নয়। বস্তু, প্রকৃতি-দৃশ্য, মহাকাশ, যন্ত্র, ছায়ামূর্তি বা চোখ-মুখহীন সরল কার্টুন-অবয়ব চলবে। কোনো পতাকা, মানচিত্র, জাতীয় প্রতীক, লেখা/অক্ষর/লোগো নয়। সুন্দর, রঙিন, সিনেমাটিক।
 
 শুধু JSON দাও: {"title_bn":"...","banner_highlight":"...","body_bn":"...","excerpt_bn":"...","social_caption_bn":"...","hashtags_en":"#Science #Niiharika","title_en":"...","body_en":"...","image_prompt":"..."}`;
   return llm(prompt, 0.9, (t) => {
@@ -208,7 +210,7 @@ export async function imageBreaksRules(buf: Buffer): Promise<boolean | null> {
   try {
     const sharp = (await import("sharp")).default;
     const small = await sharp(buf).resize(512, 512, { fit: "inside" }).jpeg({ quality: 70 }).toBuffer();
-    const prompt = 'Look at the image. Reply with JSON only: {"animal": true|false, "face": true|false}. "animal" = any animal, bird, fish or insect is visible, even partially. "face" = any human face, eyes or mouth are visible. Silhouettes and faceless cartoon figures without eyes and mouth are NOT faces.';
+    const prompt = 'Look at the image. Reply with JSON only: {"animal": true|false, "face": true|false, "flag": true|false}. "flag" = any national flag, map or emblem is visible. "animal" = any animal, bird, fish or insect is visible, even partially. "face" = any human face, eyes or mouth are visible. Silhouettes and faceless cartoon figures without eyes and mouth are NOT faces.';
     for (const model of ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.8-flash"]) {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST", signal: AbortSignal.timeout(45000),
@@ -217,7 +219,7 @@ export async function imageBreaksRules(buf: Buffer): Promise<boolean | null> {
       });
       if (!r.ok) continue;
       const j = JSON.parse(((await r.json()).candidates[0].content.parts[0].text as string).replace(/```json|```/g, "").trim());
-      return !!(j.animal || j.face);
+      return !!(j.animal || j.face || j.flag);
     }
   } catch { /* যাচাই ব্যর্থ হলে গ্রহণ */ }
   return null;

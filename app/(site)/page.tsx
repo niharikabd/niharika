@@ -11,7 +11,7 @@ export default async function Home() {
   const top = items.slice(0, 6);
   const ld = [
     { "@context": "https://schema.org", "@type": "WebSite", name: "নীহারিকা", url: SITE, inLanguage: "bn", potentialAction: { "@type": "SearchAction", target: `${SITE}/search?q={q}`, "query-input": "required name=q" } },
-    { "@context": "https://schema.org", "@type": "NewsMediaOrganization", name: "নীহারিকা", url: SITE, logo: `${SITE}/icon.svg` },
+    { "@context": "https://schema.org", "@type": "NewsMediaOrganization", name: "নীহারিকা", url: SITE, logo: `${SITE}/logo.png` },
   ];
   return (
     <>

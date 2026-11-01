@@ -17,7 +17,7 @@ const SENDERS: Record<string, { ready: () => boolean; send: (a: any, style: Styl
 // আগে প্রকাশিত কিন্তু ব্যানারহীন লেখা (পুরনো) ঠিক করা
 async function ensureBanners(db: any, mode: "open" | "all") {
   const since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const { data } = await db.from("articles").select("id,slug,title_bn,title_en,category,source_links,image_prompt,source_image_url").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(4);
+  const { data } = await db.from("articles").select("id,slug,title_bn,title_en,category,kind,banner_highlight,countries,source_links,image_prompt,source_image_url").eq("status", "published").is("banner_url", null).gte("published_at", since).limit(4);
   for (const a of data ?? []) await buildBanner(db, a, mode);
 }
 

@@ -36,7 +36,7 @@ export default async function Article({ params }: P) {
       image: a.banner_url ? [a.banner_url] : undefined, inLanguage: "bn", articleSection: CATS[a.category], wordCount: words,
       isAccessibleForFree: true, mainEntityOfPage: `${SITE}/article/${a.slug}`,
       author: { "@type": "Organization", name: "নীহারিকা সম্পাদকীয়", url: SITE },
-      publisher: { "@type": "Organization", name: "নীহারিকা", logo: { "@type": "ImageObject", url: `${SITE}/icon.svg` } },
+      publisher: { "@type": "Organization", name: "নীহারিকা", logo: { "@type": "ImageObject", url: `${SITE}/logo.png` } },
       citation: links.map((l) => l.url),
     },
     {

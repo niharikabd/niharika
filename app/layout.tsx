@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "বিজ্ঞান, প্রযুক্তি, বাংলাদেশ ও বিশ্বের খবর। AI-সহায়তায় তৈরি, মূল সূত্রের লিংকসহ।",
   applicationName: "নীহারিকা",
   alternates: { types: { "application/rss+xml": "/rss.xml" } },
-  openGraph: { siteName: "নীহারিকা", locale: "bn_BD", type: "website" },
+  openGraph: { siteName: "নীহারিকা", locale: "bn_BD", type: "website", images: [{ url: "/logo-512.png", width: 512, height: 512 }] },
   twitter: { card: "summary_large_image" },
   verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined,
 };
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const ld = [
     { "@context": "https://schema.org", "@type": "WebSite", name: "নীহারিকা", url: SITE, inLanguage: ["bn", "en"], potentialAction: { "@type": "SearchAction", target: `${SITE}/search?q={q}`, "query-input": "required name=q" } },
-    { "@context": "https://schema.org", "@type": "NewsMediaOrganization", name: "নীহারিকা", url: SITE },
+    { "@context": "https://schema.org", "@type": "NewsMediaOrganization", name: "নীহারিকা", url: SITE, logo: `${SITE}/logo.png` },
   ];
   return (
     <html lang="bn">

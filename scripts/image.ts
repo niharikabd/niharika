@@ -7,11 +7,11 @@ const OPEN: Record<string, string> = { "nasa.gov": "NASA", "esa.int": "ESA", "no
 const BRANDED = ["prothomalo.com", "thedailystar.net", "dhakatribune.com", "bdnews24.com", "jugantor.com", "kalerkantho.com", "samakal.com", "dhakapost.com", "banglatribune.com", "somoynews.tv", "jagonews24.com"];
 const isBranded = (host: string) => host.endsWith(".bd") || BRANDED.some((d) => host === d || host.endsWith("." + d));
 
-const STYLE = ", editorial photo-illustration, cinematic lighting, rich detail, vertical composition, no text, no letters, no logos, no watermark, no animals, no people, no human faces, no eyes, no mouth, faceless";
+const STYLE = ", editorial photo-illustration, cinematic lighting, rich detail, vertical composition, no text, no letters, no logos, no watermark, no animals, no people, no human faces, no eyes, no mouth, faceless, no flags, no maps, no national symbols, no emblems";
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 NiiharikaBot/1.0";
 
 export type Bg = { buf: Buffer; credit: string } | null;
-export type ImgInput = { source_links?: { name: string; url: string }[]; source_image_url?: string | null; image_prompt?: string | null; title_en?: string | null };
+export type ImgInput = { source_links?: { name: string; url: string }[]; source_image_url?: string | null; image_prompt?: string | null; title_en?: string | null; countries?: string | null };
 
 async function getBuf(url: string, ms = 20000): Promise<{ buf: Buffer; type: string } | null> {
   try {
@@ -80,6 +80,38 @@ async function pollinations(prompt: string): Promise<Buffer | null> {
   return r && r.type.startsWith("image/") && r.buf.length > 20000 ? r.buf : null;
 }
 
+
+// দেশ-সংক্রান্ত খবরে সঠিক পতাকা: AI পতাকা ভুল আঁকে, তাই ব্যাকগ্রাউন্ডে (পতাকা ছাড়া) আসল পতাকার ছবি (flagcdn.com, পাবলিক ডোমেইন) বসানো হয়
+async function addFlags(bg: Buffer, codes: string[]): Promise<Buffer> {
+  try {
+    const flags: Buffer[] = [];
+    for (const c of codes) {
+      const r = await getBuf(`https://flagcdn.com/w640/${c.toLowerCase()}.png`, 15000);
+      if (!r || !r.type.startsWith("image/")) return bg;            // একটিও না পেলে ভুল পতাকা না দিয়ে পতাকা ছাড়াই
+      flags.push(r.buf);
+    }
+    const meta = await sharp(bg).metadata();
+    const W = meta.width ?? 1024, H = meta.height ?? 1024;
+    const n = flags.length;
+    const fw = Math.round(Math.min(W * (n === 1 ? 0.62 : n === 2 ? 0.38 : 0.28), 520));
+    const gap = Math.round(W * 0.04);
+    const layers: sharp.OverlayOptions[] = [];
+    const framed: { buf: Buffer; w: number; h: number }[] = [];
+    for (const f of flags) {
+      const img = await sharp(f).resize({ width: fw }).extend({ top: 6, bottom: 6, left: 6, right: 6, background: "#ffffff" }).png().toBuffer();
+      const m = await sharp(img).metadata();
+      framed.push({ buf: img, w: m.width!, h: m.height! });
+    }
+    const total = framed.reduce((a, f) => a + f.w, 0) + gap * (n - 1);
+    let x = Math.round((W - total) / 2);
+    for (const f of framed) {
+      layers.push({ input: f.buf, left: x, top: Math.round(H * 0.5 - f.h / 2) });
+      x += f.w + gap;
+    }
+    return await sharp(bg).composite(layers).jpeg({ quality: 92 }).toBuffer();
+  } catch { return bg; }
+}
+
 export async function getBackground(a: ImgInput, mode: "open" | "all" = "all"): Promise<Bg> {
   const real = await sourcePhoto(a, mode);
   if (real) return real;                                   // ছবি থাকলে অবশ্যই সেটাই
@@ -90,7 +122,8 @@ export async function getBackground(a: ImgInput, mode: "open" | "all" = "all"): 
     const buf = (await cloudflareAI(prompt)) || (await pollinations(prompt));
     if (!buf) continue;
     if ((await imageBreaksRules(buf)) === true) continue;
-    return { buf, credit: "Concept Image | নীহারিকা" };
+    const codes = String(a.countries ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    return { buf: codes.length ? await addFlags(buf, codes) : buf, credit: "Concept Image | নীহারিকা" };
   }
   return null;
 }

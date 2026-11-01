@@ -142,7 +142,7 @@ async function writeOne(s: Settings) {
       const { data: art, error } = await db.from("articles").insert({
         slug: slugify(g.title_en), category,
         title_bn: g.title_bn, title_en: g.title_en, body_bn: g.body_bn, body_en: g.body_en, excerpt: g.excerpt_bn,
-        social_caption: g.social_caption_bn ?? null, hashtags: g.hashtags_en ?? null, image_prompt: g.image_prompt ?? null, source_image_url: pick.image_url ?? null,
+        social_caption: g.social_caption_bn ?? null, hashtags: g.hashtags_en ?? null, image_prompt: g.image_prompt ?? null, countries: (g.countries ?? []).join(",") || null, source_image_url: pick.image_url ?? null,
         source_links: [{ name: pick.sources.name, url: pick.url }], verification_score: score, status: "draft",
       }).select().single();
       if (error) throw new Error(error.message);
