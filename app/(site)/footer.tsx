@@ -18,11 +18,7 @@ export default function Footer() {
       <div className="sfoot-in">
         <div className="sfoot-col brand">
           <div className="sfoot-logo">
-            <svg className="mark" viewBox="0 0 64 64" aria-hidden="true">
-              <defs><radialGradient id="mk2" cx=".5" cy=".5" r=".5"><stop offset="0" stopColor="#d7c9ff" /><stop offset=".6" stopColor="#6f7cff" /><stop offset="1" stopColor="#2b3a8c" /></radialGradient></defs>
-              <circle cx="32" cy="32" r="30" fill="url(#mk2)" />
-              <path d="M32 11 L36.5 27.5 L53 32 L36.5 36.5 L32 53 L27.5 36.5 L11 32 L27.5 27.5 Z" fill="#fff" />
-            </svg>
+            <img className="mark" src="/logo-badge.png" alt="" width={32} height={32} />
             <strong>{en ? "Niiharika" : "নীহারিকা"}</strong> {!en && <span className="muted">Niiharika</span>}
           </div>
           <p>{t.about}</p>
