@@ -6,6 +6,7 @@ export type Settings = {
   source_images: "open" | "all";
   social_style: "full" | "short";
   evergreen_per_day: number;
+  instagram_per_day: number;
 };
 
 export const PLATFORMS = ["telegram", "facebook", "instagram"] as const;
@@ -22,6 +23,7 @@ export async function getSettings(db: any): Promise<Settings> {
     source_images: m.source_images === "open" ? "open" : "all",
     social_style: m.social_style === "full" ? "full" : "short",
     evergreen_per_day: Math.min(6, Math.max(0, Number(m.evergreen_per_day ?? 1))),
+    instagram_per_day: Math.min(25, Math.max(0, Number(m.instagram_per_day ?? 3))),
   };
 }
 
@@ -34,5 +36,6 @@ export async function saveSettings(db: any, s: Settings) {
     { key: "source_images", value: s.source_images },
     { key: "social_style", value: s.social_style },
     { key: "evergreen_per_day", value: s.evergreen_per_day },
+    { key: "instagram_per_day", value: s.instagram_per_day },
   ].map((r) => ({ ...r, updated_at: new Date().toISOString() })), { onConflict: "key" });
 }

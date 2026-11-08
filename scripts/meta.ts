@@ -1,7 +1,7 @@
 // Facebook Page ও Instagram (Graph API)। একই Page access token দুটোতেই চলে।
 // দুটি স্টাইল (Admin → Settings): "full" = পুরো খবর পোস্টে, কমেন্টে লিংক; "short" = ছোট পোস্ট, ১ম কমেন্টে পুরো খবর, ২য় কমেন্টে লিংক
 import { log } from "../lib/log";
-import { fullNews, linksComment, shortCaption, withTags } from "./social-text";
+import { fullNews, linksComment, igLinksComment, shortCaption, withTags } from "./social-text";
 
 const MORE = "\n\n👇 বিস্তারিত পড়ুন কমেন্টে";   // short স্টাইলে পোস্টের শেষে
 const V = () => process.env.GRAPH_VERSION || "v26.0";
@@ -12,7 +12,7 @@ async function graph(path: string, params: Record<string, string>, method: "POST
     ? await fetch(`https://graph.facebook.com/${V()}/${path}`, { method: "POST", body: qs })
     : await fetch(`https://graph.facebook.com/${V()}/${path}?${qs}`);
   const j = await r.json();
-  if (!r.ok || j.error) throw new Error(`meta: ${j.error?.message ?? r.status}`);
+  if (!r.ok || j.error) throw new Error(`meta: ${j.error?.message ?? r.status} (code ${j.error?.code ?? "-"}/${j.error?.error_subcode ?? "-"})`);
   return j;
 }
 
@@ -53,6 +53,6 @@ export async function postInstagram(a: any, style: "full" | "short"): Promise<st
   }
   const p = await graph(`${ig}/media_publish`, { creation_id: c.id });
   const cm = (t: string) => (t.length > 2200 ? t.slice(0, 2199) + "…" : t);
-  await comments("instagram", p.id, style === "full" ? [cm(linksComment(a))] : [cm(fullNews(a)), cm(linksComment(a))], a);
+  await comments("instagram", p.id, style === "full" ? [cm(igLinksComment(a))] : [cm(fullNews(a)), cm(igLinksComment(a))], a);
   return p.id;
 }

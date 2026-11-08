@@ -31,6 +31,11 @@ export default async function Settings({ searchParams }: { searchParams: Promise
           <label><input type="radio" name="approval_mode" value="ultra" defaultChecked={s.approval_mode === "ultra"} />Ultra Auto: every article with an image publishes automatically, including politics, crime and health — no approval at all</label>
           <div className="meta">Nothing is ever published or posted without an image. Ultra Auto has no human check: AI mistakes on sensitive stories (wrong names, accusations, health claims) go live and to your social pages immediately. You can still unpublish from the dashboard.</div>
         </div>
+        <div className="row">
+          <label><b>Instagram posts per day (0–25)</b></label>
+          <input name="instagram_per_day" type="number" min={0} max={25} defaultValue={s.instagram_per_day} />
+          <span className="meta">Instagram blocks accounts that post too much, too fast, or look automated (error 2207051). Keep this low (2–4) for a new account; posts are spaced out evenly (24h ÷ this number). Facebook and Telegram are not limited by this. 0 = skip Instagram.</span>
+        </div>
         <div className="row"><b>Social platforms (website is always on)</b><br />
           {PLATFORMS.map((p) => <label key={p} style={{ display: "block" }}><input type="checkbox" name={`p_${p}`} defaultChecked={s.platforms[p]} />{p[0].toUpperCase() + p.slice(1)}</label>)}
         </div>

@@ -59,7 +59,8 @@ export async function publishAll(): Promise<boolean> {
         await db.from("publish_queue").update({ status: "done", external_id: id, attempts: q.attempts + 1, last_error: null }).eq("id", q.id);
         await log("info", q.platform, `পোস্ট হয়েছে: ${q.articles.slug}`);
       } catch (e) {
-        const attempts = q.attempts + 1;
+        const blocked = /2207051|request limit|restrict certain activity|spam/i.test((e as Error).message);   // Instagram ব্লক: বারবার চেষ্টা করলে ব্লক বাড়ে
+        const attempts = blocked ? MAX_ATTEMPTS : q.attempts + 1;
         const waitMin = Math.min(2 ** attempts * 10, 240);
         await db.from("publish_queue").update({
           attempts, last_error: (e as Error).message, status: attempts >= MAX_ATTEMPTS ? "failed" : "pending",

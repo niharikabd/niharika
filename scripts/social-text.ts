@@ -30,3 +30,9 @@ export function telegramCaption(a: any) {
   const tail = `\n\n🔗 ${articleUrl(a)}\n\n\n${tagsOf(a)}`;
   return cut(shortCaption(a), 1024 - tail.length) + tail;
 }
+
+// Instagram-এর কমেন্টে লিংক স্প্যামের মতো দেখালে ব্লক হয়: https:// ছাড়া সরল লেখা, একটি মাত্র ঠিকানা
+export function igLinksComment(a: any) {
+  const site = SITE.replace(/^https?:\/\//, "");
+  return `🔗 পুরো খবর: ${site}/article/${a.slug}\n\n📲 Facebook: niiharika.fb · Telegram: niiharikatelegram`;
+}

@@ -116,6 +116,7 @@ export async function saveSettingsAction(fd: FormData) {
     source_images: s(fd, "source_images") === "open" ? "open" : "all",
     social_style: s(fd, "social_style") === "full" ? "full" : "short",
     evergreen_per_day: Math.min(6, Math.max(0, parseInt(s(fd, "evergreen_per_day")) || 0)),
+    instagram_per_day: Math.min(25, Math.max(0, parseInt(s(fd, "instagram_per_day")) || 0)),
   });
   redirect(A("/settings?ok=1"));
 }
